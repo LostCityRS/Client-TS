@@ -44,7 +44,7 @@ export default class Database {
         });
     }
 
-    async cachesave(name: string, src: Int8Array) {
+    async cachesave(name: string, src: Uint8Array | Int8Array) {
         return await new Promise<void>((resolve, reject): void => {
             const transaction: IDBTransaction = this.db.transaction('cache', 'readwrite');
             const store: IDBObjectStore = transaction.objectStore('cache');
