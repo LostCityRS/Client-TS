@@ -1412,7 +1412,7 @@ export class Client extends GameShell {
     async load() {
         if (this.isMobile && Client.lowMemory) {
             // force mobile on low detail mode to 30 fps
-            this.tfps = 30;
+            this.setTargetedFramerate(30);
         }
 
         if (this.alreadyStarted) {
@@ -5242,10 +5242,21 @@ export class Client extends GameShell {
 
                         if ((key === 13 || key === 10) && this.chatTyped.length > 0) {
                             if (this.chatTyped.startsWith('::')) {
-                                // CLIENT_CHEAT
-                                this.out.p1isaac(ClientProt.CLIENT_CHEAT);
-                                this.out.p1(this.chatTyped.length - 1);
-                                this.out.pjstr(this.chatTyped.substring(2));
+                                if (this.chatTyped.startsWith("::fps")) {
+                                    // ::fps command for setting a target framerate.
+                                    try {
+                                        // Default to 50 if NaN
+                                        const desiredFps = parseInt(this.chatTyped.substr(6)) || 50;
+                                        this.setTargetedFramerate(desiredFps);
+                                    } catch (e) {
+                                        // Message user? Just ignore? Probably just ignore. It's a trivial command.
+                                    }
+                                } else {
+                                    // CLIENT_CHEAT
+                                    this.out.p1isaac(ClientProt.CLIENT_CHEAT);
+                                    this.out.p1(this.chatTyped.length - 1);
+                                    this.out.pjstr(this.chatTyped.substring(2));
+                                }
                             } else {
                                 let color: number = 0;
                                 if (this.chatTyped.startsWith('yellow:')) {
