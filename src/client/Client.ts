@@ -66,13 +66,9 @@ import WordPack from '#/wordenc/WordPack.js';
 
 import Wave from '#/sound/Wave.js';
 
-async function uniqueDeviceId() {
-    function hashCode(str: string, hash = 0) {
+async function uniqueDeviceId(): str {
+    function hashCode(str: string, hash: number = 0): str {
         let chr;
-
-        if (str.length === 0) {
-            return hash;
-        }
 
         for (let i = 0; i < str.length; i++) {
             chr = str.charCodeAt(i);
@@ -85,21 +81,35 @@ async function uniqueDeviceId() {
 
     let hash = 0;
 
+    // create a hash based on physical characteristics of the machine
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/Navigator
     hash = hashCode(navigator.platform, hash);
     hash = hashCode(navigator.hardwareConcurrency.toString(), hash);
+    hash = hashCode(navigator.deviceMemory.toString(), hash);
+    hash = hashCode(navigator.language.toString(), hash);
+    // https://developer.mozilla.org/en-US/docs/Web/API/Screen
+    hash = hashCode(screen.width.toString(), hash);
+    hash = hashCode(screen.height.toString(), hash);
 
-    if (typeof navigator['gpu' as keyof Navigator] !== 'undefined') {
-        const gpu = navigator['gpu' as keyof Navigator] as any;
-        const adapter = await gpu.requestAdapter();
+    // try to include GPU based metrics; this may fail on some platforms
+    // https://developer.mozilla.org/en-US/docs/Web/API/Navigator/gpu
+    try {
+        if (typeof navigator['gpu' as keyof Navigator] !== 'undefined') {
+            const gpu = navigator['gpu' as keyof Navigator] as any;
+            const adapter = await gpu.requestAdapter();
 
-        hash = hashCode(adapter.info.vendor, hash);
-        hash = hashCode(adapter.info.architecture, hash);
-        hash = hashCode(adapter.info.device, hash);
-        hash = hashCode(adapter.info.description, hash);
+            hash = hashCode(adapter.info.vendor, hash);
+            hash = hashCode(adapter.info.architecture, hash);
+            hash = hashCode(adapter.info.device, hash);
+            hash = hashCode(adapter.info.description, hash);
 
-        for (const index in adapter.limits) {
-            hash = hashCode(adapter.limits[index].toString(), hash);
+            for (const index in adapter.limits) {
+                hash = hashCode(adapter.limits[index].toString(), hash);
+            }
         }
+    } catch (error) {
+        // GPU hashing failed
     }
 
     return hash;
