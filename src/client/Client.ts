@@ -2488,7 +2488,7 @@ export class Client extends GameShell {
                             this.lastWaveStartTime = Date.now();
                             this.lastWaveId = this.waveIds[wave];
                             this.lastWaveLoops = this.waveLoops[wave];
-                            await playWave(buf.data.slice(0, buf.pos), this.waveVolume);
+                            await playWave(buf.data.slice(0, buf.pos));
                         }
                         // else if (!this.waveReplay()) { // this logic just re-plays the old buffer
                     } catch (e) {

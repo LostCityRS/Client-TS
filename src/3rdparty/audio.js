@@ -44,9 +44,7 @@
 
 let waveGain;
 
-export async function playWave(data, vol) {
-    setWaveVolume(vol);
-
+export async function playWave(data) {
     try {
         const audioBuffer = await window.audioContext.decodeAudioData(new Uint8Array(data).buffer);
         let bufferSource = window.audioContext.createBufferSource();
@@ -64,5 +62,5 @@ export function setWaveVolume(vol) {
         waveGain.connect(window.audioContext.destination);
     }
 
-    waveGain.gain.value = vol / 256;
+    waveGain.gain.value = vol / 128;
 }
