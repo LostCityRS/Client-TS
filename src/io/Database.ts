@@ -35,7 +35,12 @@ export default class Database {
             const request: IDBRequest<Uint8Array> = store.get(name);
 
             request.onsuccess = (): void => {
-                resolve(new Uint8Array(request.result));
+                if (request.result) {
+                    resolve(new Uint8Array(request.result));
+                } else {
+                    // IDB will call onsuccess with "undefined" if key does not exist
+                    resolve(undefined);
+                }
             };
 
             request.onerror = (): void => {
