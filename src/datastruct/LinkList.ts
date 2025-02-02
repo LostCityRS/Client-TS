@@ -1,17 +1,15 @@
-import Linkable from '#/datastruct/Linkable.js';
+import Linkable from './Linkable';
 
 export default class LinkList {
     // constructor
-    private readonly sentinel: Linkable;
+    private readonly sentinel: Linkable = new Linkable();
 
     // runtime
     private cursor: Linkable | null = null;
 
     constructor() {
-        const head: Linkable = new Linkable();
-        head.next = head;
-        head.prev = head;
-        this.sentinel = head;
+        this.sentinel.next = this.sentinel;
+        this.sentinel.prev = this.sentinel;
     }
 
     addTail(node: Linkable): void {

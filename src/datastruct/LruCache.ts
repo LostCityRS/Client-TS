@@ -5,15 +5,13 @@ import DoublyLinkList from '#/datastruct/DoublyLinkList.js';
 export default class LruCache {
     // constructor
     readonly capacity: number;
-    readonly hashtable: HashTable;
-    readonly history: DoublyLinkList;
+    readonly hashtable: HashTable = new HashTable(1024);
+    readonly history: DoublyLinkList = new DoublyLinkList();
     available: number;
 
     constructor(size: number) {
         this.capacity = size;
         this.available = size;
-        this.hashtable = new HashTable(1024);
-        this.history = new DoublyLinkList();
     }
 
     get(key: bigint): DoublyLinkable | null {
@@ -28,7 +26,7 @@ export default class LruCache {
         if (this.available === 0) {
             const node: DoublyLinkable | null = this.history.pop();
             node?.unlink();
-            node?.uncache();
+            node?.unlink2();
         } else {
             this.available--;
         }
@@ -37,12 +35,15 @@ export default class LruCache {
     }
 
     clear(): void {
-        const node: DoublyLinkable | null = this.history.pop();
-        if (!node) {
-            this.available = this.capacity;
-            return;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            const node: DoublyLinkable | null = this.history.pop();
+            if (!node) {
+                this.available = this.capacity;
+                return;
+            }
+            node.unlink();
+            node.unlink2();
         }
-        node.unlink();
-        node.uncache();
     }
 }

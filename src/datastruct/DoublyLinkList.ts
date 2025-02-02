@@ -1,15 +1,16 @@
 import DoublyLinkable from '#/datastruct/DoublyLinkable.js';
 
 export default class DoublyLinkList {
-    readonly head: DoublyLinkable;
+    readonly head: DoublyLinkable = new DoublyLinkable();
 
     constructor() {
-        this.head = new DoublyLinkable();
+        this.head.next2 = this.head;
+        this.head.prev2 = this.head;
     }
 
     push(node: DoublyLinkable): void {
         if (node.prev2) {
-            node.uncache();
+            node.unlink2();
         }
         node.prev2 = this.head.prev2;
         node.next2 = this.head;
@@ -24,8 +25,9 @@ export default class DoublyLinkList {
         if (node === this.head) {
             return null;
         } else {
-            node?.uncache();
+            node?.unlink2();
             return node;
         }
     }
 }
+
