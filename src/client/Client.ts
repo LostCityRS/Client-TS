@@ -1279,7 +1279,10 @@ export class Client extends GameShell {
                 } else {
                     text = this.daysSinceLastLogin + ' days ago';
                 }
-                component.text = 'You last logged in ' + text + ' from: ' + JString.formatIPv4(this.lastAddress); // TODO dns lookup??
+                // Show ip address only if not 127.0.0.1
+                // Production does not record IP so it's always 127.0.0.1
+                const ipStr = JString.formatIPv4(this.lastAddress);
+                component.text = 'You last logged in ' + text + (ipStr === '127.0.0.1' ? '.' : ' from: ' + ipStr);
             }
         } else if (clientCode === Component.CC_UNREAD_MESSAGES) {
             if (this.unreadMessages === 0) {
