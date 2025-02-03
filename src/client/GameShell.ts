@@ -780,18 +780,48 @@ export default abstract class GameShell {
         const fixedWidth: number = 789;
         const fixedHeight: number = 532;
 
+        const canvasBounds: DOMRect = canvas.getBoundingClientRect();
+        const clickLocWithinCanvas = {
+            x: e.clientX - canvasBounds.left,
+            y: e.clientY - canvasBounds.top
+        };
+
         if (this.isFullScreen()) {
-            const br: DOMRect = canvas.getBoundingClientRect();
-            const ratio: number = window.innerHeight / canvas.height;
-            const offset: number = (window.innerWidth - canvas.width * ratio) / 2.0;
-            this.mouseX = this.mapCoord(e.clientX - br.left - offset, 0, canvas.width * ratio, 0, fixedWidth) | 0;
-            this.mouseY = this.mapCoord(e.clientY - br.top, 0, canvas.height * ratio, 0, fixedHeight) | 0;
+            // Fullscreen logic will ensure the canvas aspect ratio is
+            // preserved, centering the canvas on the screen.
+            const gameAspectRatio = fixedWidth / fixedHeight;
+            const ourAspectRatio = window.innerWidth / window.innerHeight;
+
+            // Determine whether our aspect ratio is wider than canvas' one.
+            const wider = ourAspectRatio >= gameAspectRatio;
+
+            let trueCanvasWidth = 0;
+            let trueCanvasHeight = 0;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            if (wider) {
+                // Browser will scale canvas according to _height_.
+                trueCanvasWidth = window.innerHeight * gameAspectRatio;
+                trueCanvasHeight = window.innerHeight;
+                // As such, there will be a gap on the X axis either side.
+                offsetX = (window.innerWidth - trueCanvasWidth) / 2;
+            } else {
+                // Browser will scale canvas according to _width_.
+                trueCanvasWidth = window.innerWidth;
+                trueCanvasHeight = window.innerWidth / gameAspectRatio;
+                // As such, there will be a gap on the Y axis either side.
+                offsetY = (window.innerHeight - trueCanvasHeight) / 2;
+            }
+            const scaleX = fixedWidth / trueCanvasWidth;
+            const scaleY = fixedHeight / trueCanvasHeight;
+            this.mouseX = ((clickLocWithinCanvas.x - offsetX) * scaleX) | 0;
+            this.mouseY = ((clickLocWithinCanvas.y - offsetY) * scaleY) | 0;
         } else {
-            const rect: DOMRect = canvas.getBoundingClientRect();
-            const scaleX: number = canvas.width / rect.width;
-            const scaleY: number = canvas.height / rect.height;
-            this.mouseX = ((e.clientX - rect.left) * scaleX) | 0;
-            this.mouseY = ((e.clientY - rect.top) * scaleY) | 0;
+            const scaleX: number = canvas.width / canvasBounds.width;
+            const scaleY: number = canvas.height / canvasBounds.height;
+            this.mouseX = (clickLocWithinCanvas.x * scaleX) | 0;
+            this.mouseY = (clickLocWithinCanvas.y * scaleY) | 0;
         }
 
         if (this.mouseX < 0) {
