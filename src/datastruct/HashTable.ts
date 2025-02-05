@@ -6,19 +6,17 @@ export default class HashTable {
     readonly buckets: Linkable[];
 
     constructor(size: number) {
-        this.buckets = [];
+        this.buckets = new Array(size);
         this.bucketCount = size;
         for (let i: number = 0; i < size; i++) {
-            this.buckets[i] = new Linkable();
+            const sentinel = this.buckets[i] = new Linkable();
+            sentinel.next = sentinel;
+            sentinel.prev = sentinel;
         }
     }
 
     get(key: bigint): Linkable | null {
         const start: Linkable = this.buckets[Number(key & BigInt(this.bucketCount - 1))];
-        const next: Linkable | null = start.next;
-        if (!next) {
-            return null;
-        }
 
         for (let node: Linkable | null = start.next; node !== start; node = node.next) {
             if (!node) {
