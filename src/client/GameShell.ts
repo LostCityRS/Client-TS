@@ -566,14 +566,16 @@ export default abstract class GameShell {
             } else {
                 input.setAttribute('type', this.inPasswordArea() ? 'password' : 'text');
             }
-            input.setAttribute('autofocus', 'autofocus');
             input.setAttribute('spellcheck', 'false');
             input.setAttribute('autocomplete', 'off');
+            input.setAttribute('autofocus', 'false');
             input.setAttribute('style', `position: fixed; left: ${clientX}px; top: ${clientY}px; width: 1px; height: 1px; opacity: 0;`);
             document.body.appendChild(input);
 
-            input.focus();
-            input.click();
+            // if we call focus() right away, we end up focusing an element that is not yet in the DOM
+            // causing OSK to briefly pop up, then disappear, then (maybe) re-appear again for the new node.
+            // set a timeout to allow DOM to update.
+            setTimeout(() => input.focus(), 500);
 
             if (this.isAndroid) {
                 input.oninput = (e: Event): void => {
@@ -615,7 +617,8 @@ export default abstract class GameShell {
                 this.onkeyup(new KeyboardEvent('keyup', { key: e.key, code: e.key }));
             };
 
-            input.onfocus = (e: FocusEvent): void => {
+            input.onblur = (e: FocusEvent): void => {
+                // when the input element loses focus, be sure to delete it
                 this.input?.parentNode?.removeChild(this.input);
                 this.input = null;
                 this.onfocus(e);
