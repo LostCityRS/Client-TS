@@ -149,6 +149,7 @@ class TinyMidiPCM {
     const renderInterval = 30;
     const fadeseconds = 2;
 
+    let currentTimeout = null;
     // let renderEndSeconds = 0;
     // let currentMidiBuffer = null;
     let samples = new Float32Array();
@@ -270,6 +271,8 @@ class TinyMidiPCM {
     }
 
     window._tinyMidiStop = async fade => {
+        currentTimeout = null;
+
         if (fade) {
             fadeOut(() => {
                 stop();
@@ -291,8 +294,11 @@ class TinyMidiPCM {
         await window._tinyMidiStop(fade);
 
         if (fade) {
-            setTimeout(() => {
-                start(vol, midiBuffer);
+            currentTimeout = setTimeout(() => {
+                if (currentTimeout) {
+                    start(vol, midiBuffer);
+                }
+                currentTimeout = null;
             }, fadeseconds * 1000);
         } else {
             start(vol, midiBuffer);

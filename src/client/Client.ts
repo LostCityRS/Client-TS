@@ -2352,7 +2352,6 @@ export class Client extends GameShell {
                 for (let i: number = 0; i < 5; i++) {
                     this.designColors[i] = 0;
                 }
-                stopMidi(true); // custom fix :-)
                 Client.oplogic1 = 0;
                 Client.oplogic2 = 0;
                 Client.oplogic3 = 0;
