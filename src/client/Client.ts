@@ -603,6 +603,11 @@ export class Client extends GameShell {
         return this.viewportInterfaceId;
     }
 
+    getReportAbuseInterfaceId(): number {
+        // custom: for report abuse input on mobile
+        return this.reportAbuseInterfaceID;
+    }
+
     // ---- protected functions can be used by impl classes
 
     protected unloadTitle = (): void => {

@@ -69,6 +69,7 @@ export default abstract class GameShell {
     abstract isShowSocialInput(): boolean;
     abstract getChatInterfaceId(): number;
     abstract getViewportInterfaceId(): number;
+    abstract getReportAbuseInterfaceId(): number;  // custom: report abuse input on mobile
 
     protected get width(): number {
         return canvas.width;
@@ -393,7 +394,7 @@ export default abstract class GameShell {
         this.mouseClickY = this.mouseY;
 
         if (this.isMobile && !this.isCapacitor) {
-            if (this.insideChatInputArea() || this.insideUsernameArea() || this.inPasswordArea()) {
+            if (this.insideMobileInputArea()) {
                 this.mouseClickButton = 1;
                 this.mouseButton = 1;
                 return;
@@ -461,6 +462,7 @@ export default abstract class GameShell {
 
     private onmousemove(e: MouseEvent) {
         this.setMousePosition(e);
+
         this.idleCycles = Date.now();
 
         if (InputTracking.enabled) {
@@ -539,7 +541,7 @@ export default abstract class GameShell {
         } else if (this.startedInTabArea && !this.insideTabArea()) {
             this.touching = false;
             return;
-        } else if (this.insideChatInputArea() || this.insideChatPopupArea() || this.insideUsernameArea() || this.inPasswordArea()) {
+        } else if (this.insideMobileInputArea()) {
             if (this.input !== null) {
                 if (this.input.parentNode?.contains(this.input)) {
                     this.input.parentNode?.removeChild(this.input);
@@ -560,6 +562,9 @@ export default abstract class GameShell {
             } else if (this.insideChatPopupArea()) {
                 input.setAttribute('id', 'chatpopup');
                 input.setAttribute('placeholder', 'Chatpopup');
+            } else if (this.insideReportInterfaceTextArea()) {
+                input.setAttribute('id', 'reportinput');
+                input.setAttribute('placeholder', 'Username');
             }
             if (this.isAndroid) {
                 // this forces android to not use compose text for oninput. its good enough.
@@ -703,6 +708,11 @@ export default abstract class GameShell {
         return this.ingame && this.mouseX >= viewportAreaX1 && this.mouseX <= viewportAreaX2 && this.mouseY >= viewportAreaY1 && this.mouseY <= viewportAreaY2;
     };
 
+    private insideMobileInputArea() {
+        // custom: for mobile keyboard input
+        return this.insideChatInputArea() || this.insideUsernameArea() || this.inPasswordArea() || this.insideReportInterfaceTextArea();
+    }
+
     private insideChatInputArea() {
         // 495 x 33
         const chatInputAreaX1: number = 11;
@@ -728,6 +738,37 @@ export default abstract class GameShell {
         const chatInputAreaX2: number = chatInputAreaX1 + 495;
         const chatInputAreaY2: number = chatInputAreaY1 + 99;
         return this.ingame && (this.isChatBackInputOpen() || this.isShowSocialInput()) && this.mouseX >= chatInputAreaX1 && this.mouseX <= chatInputAreaX2 && this.mouseY >= chatInputAreaY1 && this.mouseY <= chatInputAreaY2;
+    };
+
+
+    private insideReportInterfaceTextArea() {
+        // custom: for report abuse input on mobile
+        // actual component size is [233, 137, 58 14]
+        // extended it a little bit for easier interaction, since the area to
+        // touch is not obvious (it's a bit narrow)
+        if (!this.ingame) {
+            return false;
+        }
+        const viewportInterfaceId = this.getViewportInterfaceId();
+        const reportAbuseInterfaceId = this.getReportAbuseInterfaceId();
+        // either viewport or report-abuse interface Ids are bad
+        if (viewportInterfaceId === -1 || reportAbuseInterfaceId === -1) {
+            return false;
+        }
+        // active viewport interface Id does not match
+        if (viewportInterfaceId !== reportAbuseInterfaceId) {
+            return false;
+        }
+        const reportInputAreaX1: number = 82;
+        const reportInputAreaY1: number = 137;
+        const reportInputAreaX2: number = reportInputAreaX1 + 366;
+        const reportInputAreaY2: number = reportInputAreaY1 + 26;
+        return (
+            this.mouseX >= reportInputAreaX1 &&
+            this.mouseX <= reportInputAreaX2 &&
+            this.mouseY >= reportInputAreaY1 &&
+            this.mouseY <= reportInputAreaY2
+        );
     };
 
     private insideTabArea() {
