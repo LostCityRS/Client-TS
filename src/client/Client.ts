@@ -66,6 +66,7 @@ import WordPack from '#/wordenc/WordPack.js';
 
 import Wave from '#/sound/Wave.js';
 
+let calculatedUniqueDeviceId = 0;
 async function uniqueDeviceId() {
     function hashCode(str: string, hash: number = 0) {
         let chr;
@@ -78,10 +79,33 @@ async function uniqueDeviceId() {
 
         return hash;
     }
+    if (calculatedUniqueDeviceId !== 0) {
+        return calculatedUniqueDeviceId;
+    }
 
     let hash = 1337;
 
     // create a hash based on physical characteristics of the machine
+
+    // WebGL renderer info
+    try {
+        const ephemeralCanvas = document.createElement("canvas");
+        const glCtx = ephemeralCanvas.getContext("webgl");
+        if (glCtx) {
+            const info = glCtx.getExtension("WEBGL_debug_renderer_info");
+            if (info) {
+                const vendor: string = glCtx.getParameter(info.UNMASKED_VENDOR_WEBGL);
+                const renderer: string = glCtx.getParameter(info.UNMASKED_RENDERER_WEBGL);
+                // ie: ANGLE (AMD, AMD Radeon Graphics (radeonsi renoir LLVM 9.1.4), OpenGL ES 3.2)
+                // remove version numbers and disregard whitespace to make it not dependent on software versions
+                const rendererLettersOnly = renderer.replace(/[^a-zA-Z]/g, "");
+                hash = hashCode(vendor, hash);
+                hash = hashCode(rendererLettersOnly, hash);
+            }
+        }
+    } catch (_) {
+        // GL renderer hashing failed
+    }
 
     try {
         // https://developer.mozilla.org/en-US/docs/Web/API/Navigator
@@ -115,7 +139,8 @@ async function uniqueDeviceId() {
         console.error(err);
     }
 
-    return hash;
+    calculatedUniqueDeviceId = hash;
+    return calculatedUniqueDeviceId;
 }
 
 export class Client extends GameShell {
