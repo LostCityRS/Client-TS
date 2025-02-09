@@ -271,14 +271,13 @@ class TinyMidiPCM {
     }
 
     window._tinyMidiStop = async fade => {
-        currentTimeout = null;
-
         if (fade) {
             fadeOut(() => {
                 stop();
             });
         } else {
             stop();
+            currentTimeout = null;
         }
     };
 
@@ -298,7 +297,6 @@ class TinyMidiPCM {
                 if (currentTimeout) {
                     start(vol, midiBuffer);
                 }
-                currentTimeout = null;
             }, fadeseconds * 1000);
         } else {
             start(vol, midiBuffer);
