@@ -394,7 +394,7 @@ export default abstract class GameShell {
         this.mouseClickY = this.mouseY;
 
         if (this.isMobile && !this.isCapacitor) {
-            if (this.insideMobileInputArea()) {
+            if (this.insideMobileInputArea() && !this.insideChatPopupArea()) {
                 this.mouseClickButton = 1;
                 this.mouseButton = 1;
                 return;
@@ -710,7 +710,7 @@ export default abstract class GameShell {
 
     private insideMobileInputArea() {
         // custom: for mobile keyboard input
-        return this.insideChatInputArea() || this.insideUsernameArea() || this.inPasswordArea() || this.insideReportInterfaceTextArea();
+        return this.insideChatInputArea() || this.insideChatPopupArea() || this.insideUsernameArea() || this.inPasswordArea() || this.insideReportInterfaceTextArea();
     }
 
     private insideChatInputArea() {
