@@ -149,7 +149,8 @@ class TinyMidiPCM {
     const renderInterval = 30;
     const fadeseconds = 2;
 
-    let currentTimeout = null;
+    let midiTimeout = null;
+    let fadeTimeout = null;
     // let renderEndSeconds = 0;
     // let currentMidiBuffer = null;
     let samples = new Float32Array();
@@ -235,7 +236,7 @@ class TinyMidiPCM {
         const currentTime = window.audioContext.currentTime;
         gainNode.gain.cancelScheduledValues(currentTime);
         gainNode.gain.setTargetAtTime(0, currentTime, 0.5);
-        setTimeout(callback, fadeseconds * 1000);
+        return setTimeout(callback, fadeseconds * 1000);
     }
 
     function stop() {
@@ -272,12 +273,15 @@ class TinyMidiPCM {
 
     window._tinyMidiStop = async fade => {
         if (fade) {
-            fadeOut(() => {
-                stop();
+            fadeTimeout = fadeOut(() => {
+                if (fadeTimeout) {
+                    stop();
+                }
             });
         } else {
             stop();
-            currentTimeout = null;
+            midiTimeout = null;
+            fadeTimeout = null
         }
     };
 
@@ -293,8 +297,8 @@ class TinyMidiPCM {
         await window._tinyMidiStop(fade);
 
         if (fade) {
-            currentTimeout = setTimeout(() => {
-                if (currentTimeout) {
+            midiTimeout = setTimeout(() => {
+                if (midiTimeout) {
                     start(vol, midiBuffer);
                 }
             }, fadeseconds * 1000);
