@@ -115,6 +115,14 @@ export default abstract class GameShell {
             canvas.ontouchmove = this.ontouchmove.bind(this);
         }
 
+        // Register handler for unbeforeunload.
+        window.onbeforeunload = (e: BeforeUnloadEvent) => {
+            // if user is logged into the game, show a confirmation prompt.
+            if (this.ingame) {
+                e.preventDefault();
+            }
+        };
+
         // Preventing mouse events from bubbling up to the context menu in the browser for our canvas.
         // This may need to be hooked up to our own context menu in the future.
         canvas.oncontextmenu = (e: MouseEvent): void => {
