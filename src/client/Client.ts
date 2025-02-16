@@ -2,6 +2,7 @@ import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume } fro
 
 import GameShell from '#/client/GameShell.js';
 import InputTracking from '#/client/InputTracking.js';
+import { KeyCodes } from '#/client/KeyCodes.js';
 
 import FloType from '#/config/FloType.js';
 import SeqType from '#/config/SeqType.js';
@@ -2126,6 +2127,36 @@ export class Client extends GameShell {
                         this.username = this.username.substring(0, 12);
                     }
                 } else if (this.titleLoginField === 1) {
+                    // Support secure paste into password entry field
+                    const ctrlIsHeld = this.actionKey[5] === 1;
+                    const keyIsV = key === 22;
+                    if (ctrlIsHeld && keyIsV && this.password.length === 0) {
+                        try {
+                            const text = await navigator.clipboard.readText();
+                            if (text) {
+                                // Run each character through the same process
+                                // used for parsing real human input, to ensure
+                                // we only paste in valid chars.
+                                for (const char of text) {
+                                    const keyCode = KeyCodes.get(char);
+                                    if (!keyCode) {
+                                        continue;
+                                    }
+                                    // insert to keyQueue such that it is
+                                    // processed as regular input.
+                                    this.keyQueue[this.keyQueueWritePos] = keyCode.ch;
+                                    this.keyQueueWritePos = (this.keyQueueWritePos + 1) & 0x7f;
+                                }
+                                // Erase clipboard, to try and prevent user
+                                // from accidently pasting it elsewhere!
+                                // TODO: clear only on successful login, but
+                                // needs more complex state tracking.
+                                navigator.clipboard.writeText('');
+                            }
+                        } catch (_) {
+                            // Clipboard permission denied
+                        }
+                    }
                     if (key === 8 && this.password.length > 0) {
                         this.password = this.password.substring(0, this.password.length - 1);
                     }
