@@ -2137,7 +2137,7 @@ export class Client extends GameShell {
                                 // Run each character through the same process
                                 // used for parsing real human input, to ensure
                                 // we only paste in valid chars.
-                                for (const char of text) {
+                                for (const char of text.substring(0, 20)) {
                                     const keyCode = KeyCodes.get(char);
                                     if (!keyCode) {
                                         continue;
