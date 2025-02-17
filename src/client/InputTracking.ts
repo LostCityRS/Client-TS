@@ -52,7 +52,10 @@ export default class InputTracking {
         }
         this.lastTime = now;
         this.ensureCapacity(5);
-        if (button === 1) {
+	// 0 = left
+	// 1 = middle
+	// 2 = right
+        if (button === 1 || button === 0) {
             this.outBuffer?.p1(1);
         } else {
             this.outBuffer?.p1(2);
