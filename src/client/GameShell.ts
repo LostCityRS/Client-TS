@@ -632,7 +632,9 @@ export default abstract class GameShell {
 
         if (longPress && !moved) {
             this.touching = true;
+            // Send both down and up events to simulate a right-click.
             this.onmousedown(new MouseEvent('mousedown', { clientX, clientY, button: 2 }));
+            this.onmouseup(new MouseEvent('mouseup', { clientX, clientY, button: 2 }));
         }
     };
 
