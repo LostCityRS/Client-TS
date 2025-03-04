@@ -178,11 +178,6 @@ class WebSocketReader {
         } else {
             this.queue.push(event);
         }
-
-        // check for the overflow after the callback
-        if (this.available > this.limit) {
-            throw new Error('Buffer overflow');
-        }
     };
 
     async read(): Promise<number> {
