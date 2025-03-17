@@ -61,6 +61,7 @@ export default class Component {
             com.clientCode = dat.g2();
             com.width = dat.g2();
             com.height = dat.g2();
+            com.alpha = dat.g1();
 
             com.overLayer = dat.g1();
             if (com.overLayer === 0) {
@@ -99,7 +100,7 @@ export default class Component {
                 com.scroll = dat.g2();
                 com.hide = dat.g1() === 1;
 
-                const childCount: number = dat.g1();
+                const childCount: number = dat.g2();
                 com.childId = new Array(childCount);
                 com.childX = new Array(childCount);
                 com.childY = new Array(childCount);
@@ -379,6 +380,7 @@ export default class Component {
     clientCode: number = 0;
     width: number = 0;
     height: number = 0;
+    alpha: number = 0;
     overLayer: number = -1;
     scriptComparator: Uint8Array | null = null;
     scriptOperand: Uint16Array | null = null;

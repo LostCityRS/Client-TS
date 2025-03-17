@@ -71,6 +71,15 @@ export default class Pix2D extends DoublyLinkable {
         this.drawVerticalLine(x + w - 1, y, color, h);
     }
 
+    static drawRectAlpha(x: number, y: number, w: number, h: number, color: number, alpha: number): void {
+        this.drawHorizontalLineAlpha(x, y, color, w, alpha);
+        this.drawHorizontalLineAlpha(x, y + h - 1, color, w, alpha);
+        if (h >= 3) {
+            this.drawVerticalLineAlpha(x, y, color, h, alpha);
+            this.drawVerticalLineAlpha(x + w - 1, y, color, h, alpha);
+        }
+    }
+
     static drawHorizontalLine(x: number, y: number, color: number, width: number): void {
         if (y < this.top || y >= this.bottom) {
             return;
@@ -91,25 +100,83 @@ export default class Pix2D extends DoublyLinkable {
         }
     }
 
-    static drawVerticalLine(x: number, y: number, color: number, width: number): void {
+    static drawHorizontalLineAlpha = (x: number, y: number, color: number, width: number, alpha: number): void => {
+        if (y < this.top || y >= this.bottom) {
+            return;
+        }
+
+        if (x < this.left) {
+            width -= this.left - x;
+            x = this.left;
+        }
+
+        if (x + width > this.right) {
+            width = this.right - x;
+        }
+
+        const invAlpha: number = 256 - alpha;
+        const r0: number = ((color >> 16) & 0xff) * alpha;
+        const g0: number = ((color >> 8) & 0xff) * alpha;
+        const b0: number = (color & 0xff) * alpha;
+        const step: number = this.width2d - width;
+        let offset: number = x + y * this.width2d;
+        for (let i: number = 0; i < width; i++) {
+            const r1: number = ((this.pixels[offset] >> 16) & 0xff) * invAlpha;
+            const g1: number = ((this.pixels[offset] >> 8) & 0xff) * invAlpha;
+            const b1: number = (this.pixels[offset] & 0xff) * invAlpha;
+            const color: number = (((r0 + r1) >> 8) << 16) + (((g0 + g1) >> 8) << 8) + ((b0 + b1) >> 8);
+            this.pixels[offset++] = color;
+        }
+    };
+
+    static drawVerticalLine(x: number, y: number, color: number, height: number): void {
         if (x < this.left || x >= this.right) {
             return;
         }
 
         if (y < this.top) {
-            width -= this.top - y;
+            height -= this.top - y;
             y = this.top;
         }
 
-        if (y + width > this.bottom) {
-            width = this.bottom - y;
+        if (y + height > this.bottom) {
+            height = this.bottom - y;
         }
 
         const off: number = x + y * this.width2d;
-        for (let i: number = 0; i < width; i++) {
+        for (let i: number = 0; i < height; i++) {
             this.pixels[off + i * this.width2d] = color;
         }
     }
+
+    static drawVerticalLineAlpha = (x: number, y: number, color: number, height: number, alpha: number): void => {
+        if (x < this.left || x >= this.right) {
+            return;
+        }
+
+        if (y < this.top) {
+            height -= this.top - y;
+            y = this.top;
+        }
+
+        if (y + height > this.bottom) {
+            height = this.bottom - y;
+        }
+
+        const invAlpha: number = 256 - alpha;
+        const r0: number = ((color >> 16) & 0xff) * alpha;
+        const g0: number = ((color >> 8) & 0xff) * alpha;
+        const b0: number = (color & 0xff) * alpha;
+        let offset: number = x + y * this.width2d;
+        for (let i: number = 0; i < height; i++) {
+            const r1: number = ((this.pixels[offset] >> 16) & 0xff) * invAlpha;
+            const g1: number = ((this.pixels[offset] >> 8) & 0xff) * invAlpha;
+            const b1: number = (this.pixels[offset] & 0xff) * invAlpha;
+            const color: number = (((r0 + r1) >> 8) << 16) + (((g0 + g1) >> 8) << 8) + ((b0 + b1) >> 8);
+            this.pixels[offset] = color;
+            offset += this.width2d;
+        }
+    };
 
     static drawLine(x1: number, y1: number, x2: number, y2: number, color: number): void {
         const dx: number = Math.abs(x2 - x1);

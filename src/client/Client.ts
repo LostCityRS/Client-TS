@@ -924,10 +924,17 @@ export class Client extends GameShell {
                     }
                 }
             } else if (child.comType === ComponentType.TYPE_RECT) {
-                if (child.fill) {
-                    Pix2D.fillRect2d(childX, childY, child.width, child.height, child.colour);
+                if (child.alpha === 0) {
+                    if (child.fill) {
+                        Pix2D.fillRect2d(childX, childY, child.width, child.height, child.colour);
+                    } else {
+                        Pix2D.drawRect(childX, childY, child.width, child.height, child.colour);
+                    }
+                } else if (child.fill) {
+                    Pix2D.fillRectAlpha(childX, childY, child.width, child.height, child.colour, 256 - (child.alpha & 0xFF));
                 } else {
                     Pix2D.drawRect(childX, childY, child.width, child.height, child.colour);
+                    Pix2D.drawRectAlpha(childX, childY, child.width, child.height, child.colour, 256 - (child.alpha & 0xFF));
                 }
             } else if (child.comType === ComponentType.TYPE_TEXT) {
                 const font: PixFont | null = child.font;
