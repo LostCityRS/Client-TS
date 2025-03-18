@@ -5,7 +5,7 @@ import InputTracking from '#/client/InputTracking.js';
 import { ClientCode } from '#/client/ClientCode.ts';
 
 import FloType from '#/config/FloType.js';
-import SeqType from '#/config/SeqType.js';
+import SeqType, { PostanimMove, PreanimMove, RestartMode } from '#/config/SeqType.js';
 import LocType from '#/config/LocType.js';
 import ObjType from '#/config/ObjType.js';
 import NpcType from '#/config/NpcType.js';
@@ -8803,12 +8803,24 @@ export class Client extends GameShell {
                 player.primarySeqLoop = 0;
             }
             const delay: number = buf.g1();
-            if (seqId === -1 || player.primarySeqId === -1 || SeqType.instances[seqId].seqPriority > SeqType.instances[player.primarySeqId].seqPriority || SeqType.instances[player.primarySeqId].seqPriority === 0) {
+            if (player.primarySeqId === seqId && seqId !== -1) {
+                const restartMode = SeqType.instances[seqId].restartMode;
+                if (restartMode == RestartMode.RESET) {
+                    player.primarySeqFrame = 0;
+                    player.primarySeqCycle = 0;
+                    player.primarySeqDelay = delay;
+                    player.primarySeqLoop = 0;
+                }
+                if (restartMode == RestartMode.RESETLOOP) {
+                    player.primarySeqLoop = 0;
+                }
+            } else if (seqId === -1 || player.primarySeqId === -1 || SeqType.instances[seqId].seqPriority > SeqType.instances[player.primarySeqId].seqPriority || SeqType.instances[player.primarySeqId].seqPriority === 0) {
                 player.primarySeqId = seqId;
                 player.primarySeqFrame = 0;
                 player.primarySeqCycle = 0;
                 player.primarySeqDelay = delay;
                 player.primarySeqLoop = 0;
+                player.preanimRouteLength = player.routeLength;
             }
         }
         if ((mask & PlayerUpdate.FACE_ENTITY) !== 0) {
@@ -8897,9 +8909,7 @@ export class Client extends GameShell {
             player.forceMoveEndCycle = buf.g2() + this.loopCycle;
             player.forceMoveStartCycle = buf.g2() + this.loopCycle;
             player.forceMoveFaceDirection = buf.g1();
-            player.routeLength = 0;
-            player.routeFlagX[0] = player.forceMoveEndSceneTileX;
-            player.routeFlagZ[0] = player.forceMoveEndSceneTileZ;
+            player.clearRoute();
         }
     }
 
@@ -9069,12 +9079,24 @@ export class Client extends GameShell {
                     npc.primarySeqLoop = 0;
                 }
                 const delay: number = buf.g1();
-                if (seqId === -1 || npc.primarySeqId === -1 || SeqType.instances[seqId].seqPriority > SeqType.instances[npc.primarySeqId].seqPriority || SeqType.instances[npc.primarySeqId].seqPriority === 0) {
+                if (npc.primarySeqId === seqId && seqId !== -1) {
+                    const restartMode = SeqType.instances[seqId].restartMode;
+                    if (restartMode == RestartMode.RESET) {
+                        npc.primarySeqFrame = 0;
+                        npc.primarySeqCycle = 0;
+                        npc.primarySeqDelay = delay;
+                        npc.primarySeqLoop = 0;
+                    }
+                    if (restartMode == RestartMode.RESETLOOP) {
+                        npc.primarySeqLoop = 0;
+                    }
+                } else if (seqId === -1 || npc.primarySeqId === -1 || SeqType.instances[seqId].seqPriority > SeqType.instances[npc.primarySeqId].seqPriority || SeqType.instances[npc.primarySeqId].seqPriority === 0) {
                     npc.primarySeqId = seqId;
                     npc.primarySeqFrame = 0;
                     npc.primarySeqCycle = 0;
                     npc.primarySeqDelay = delay;
                     npc.primarySeqLoop = 0;
+                    npc.preanimRouteLength = npc.routeLength;
                 }
             }
             if ((mask & NpcUpdate.FACE_ENTITY) !== 0) {
@@ -9175,7 +9197,7 @@ export class Client extends GameShell {
             entity.forceMoveStartCycle = 0;
             entity.x = entity.routeFlagX[0] * 128 + entity.size * 64;
             entity.z = entity.routeFlagZ[0] * 128 + entity.size * 64;
-            entity.routeLength = 0;
+            entity.clearRoute();
         }
 
         if (entity === this.localPlayer && (entity.x < 1536 || entity.z < 1536 || entity.x >= 11776 || entity.z >= 11776)) {
@@ -9185,7 +9207,7 @@ export class Client extends GameShell {
             entity.forceMoveStartCycle = 0;
             entity.x = entity.routeFlagX[0] * 128 + entity.size * 64;
             entity.z = entity.routeFlagZ[0] * 128 + entity.size * 64;
-            entity.routeLength = 0;
+            entity.clearRoute();
         }
 
         if (entity.forceMoveEndCycle > this.loopCycle) {
@@ -9473,7 +9495,7 @@ export class Client extends GameShell {
         entity.x += ((dstX - entity.x) / delta) | 0;
         entity.z += ((dstZ - entity.z) / delta) | 0;
 
-        entity.seqTrigger = 0;
+        entity.seqDelayMove = 0;
 
         if (entity.forceMoveFaceDirection === 0) {
             entity.dstYaw = 1024;
@@ -9504,7 +9526,7 @@ export class Client extends GameShell {
             entity.z = ((dz0 * (duration - delta) + dz1 * delta) / duration) | 0;
         }
 
-        entity.seqTrigger = 0;
+        entity.seqDelayMove = 0;
 
         if (entity.forceMoveFaceDirection === 0) {
             entity.dstYaw = 1024;
@@ -9555,7 +9577,7 @@ export class Client extends GameShell {
             }
         }
 
-        if ((e.targetTileX !== 0 || e.targetTileZ !== 0) && (e.routeLength === 0 || e.seqTrigger > 0)) {
+        if ((e.targetTileX !== 0 || e.targetTileZ !== 0) && (e.routeLength === 0 || e.seqDelayMove > 0)) {
             const dstX: number = e.x - (e.targetTileX - this.sceneBaseTileX - this.sceneBaseTileX) * 64;
             const dstZ: number = e.z - (e.targetTileZ - this.sceneBaseTileZ - this.sceneBaseTileZ) * 64;
 
@@ -9608,6 +9630,32 @@ export class Client extends GameShell {
             }
         }
 
+        if (e.spotanimId !== -1 && this.loopCycle >= e.spotanimLastCycle) {
+            if (e.spotanimFrame < 0) {
+                e.spotanimFrame = 0;
+            }
+
+            seq = SpotAnimType.instances[e.spotanimId].seq;
+            e.spotanimCycle++;
+            while (seq && seq.seqDelay && e.spotanimFrame < seq.seqFrameCount && e.spotanimCycle > seq.seqDelay[e.spotanimFrame]) {
+                e.spotanimCycle -= seq.seqDelay[e.spotanimFrame];
+                e.spotanimFrame++;
+            }
+
+            if (seq && e.spotanimFrame >= seq.seqFrameCount) {
+                if (e.spotanimFrame < 0 || e.spotanimFrame >= seq.seqFrameCount) {
+                    e.spotanimId = -1;
+                }
+            }
+        }
+
+        if (e.primarySeqId != -1 && e.primarySeqDelay <= 1) {
+            seq = SeqType.instances[e.secondarySeqId];
+            if (seq.preanimMove === PreanimMove.DELAYANIM && e.preanimRouteLength > 0 && this.loopCycle >= e.forceMoveStartCycle && this.loopCycle > e.forceMoveEndCycle) {
+                e.primarySeqDelay = 1;
+                return;
+            }
+        }
         if (e.primarySeqId !== -1 && e.primarySeqDelay === 0) {
             seq = SeqType.instances[e.primarySeqId];
             e.primarySeqCycle++;
@@ -9633,39 +9681,24 @@ export class Client extends GameShell {
         if (e.primarySeqDelay > 0) {
             e.primarySeqDelay--;
         }
-
-        if (e.spotanimId !== -1 && this.loopCycle >= e.spotanimLastCycle) {
-            if (e.spotanimFrame < 0) {
-                e.spotanimFrame = 0;
-            }
-
-            seq = SpotAnimType.instances[e.spotanimId].seq;
-            e.spotanimCycle++;
-            while (seq && seq.seqDelay && e.spotanimFrame < seq.seqFrameCount && e.spotanimCycle > seq.seqDelay[e.spotanimFrame]) {
-                e.spotanimCycle -= seq.seqDelay[e.spotanimFrame];
-                e.spotanimFrame++;
-            }
-
-            if (seq && e.spotanimFrame >= seq.seqFrameCount) {
-                if (e.spotanimFrame < 0 || e.spotanimFrame >= seq.seqFrameCount) {
-                    e.spotanimId = -1;
-                }
-            }
-        }
     }
 
     private updateMovement(entity: PathingEntity): void {
         entity.secondarySeqId = entity.seqStandId;
 
         if (entity.routeLength === 0) {
-            entity.seqTrigger = 0;
+            entity.seqDelayMove = 0;
             return;
         }
 
         if (entity.primarySeqId !== -1 && entity.primarySeqDelay === 0) {
             const seq: SeqType = SeqType.instances[entity.primarySeqId];
-            if (!seq.walkmerge) {
-                entity.seqTrigger++;
+            if (entity.preanimRouteLength > 0 && seq.preanimMove === PreanimMove.DELAYMOVE) {
+                entity.seqDelayMove++;
+                return;
+            }
+            if (entity.preanimRouteLength <= 0 && seq.postanimMove === PostanimMove.DELAYMOVE) {
+                entity.seqDelayMove++;
                 return;
             }
         }
@@ -9730,9 +9763,9 @@ export class Client extends GameShell {
                 moveSpeed = 8;
             }
 
-            if (entity.seqTrigger > 0 && entity.routeLength > 1) {
+            if (entity.seqDelayMove > 0 && entity.routeLength > 1) {
                 moveSpeed = 8;
-                entity.seqTrigger--;
+                entity.seqDelayMove--;
             }
 
             if (entity.routeRun[entity.routeLength - 1]) {
@@ -9768,6 +9801,9 @@ export class Client extends GameShell {
 
             if (entity.x === dstX && entity.z === dstZ) {
                 entity.routeLength--;
+                if (entity.preanimRouteLength > 0) {
+                    entity.preanimRouteLength--;
+                }
             }
         } else {
             entity.x = dstX;

@@ -1,4 +1,4 @@
-import SeqType from '#/config/SeqType.js';
+import SeqType, { PostanimMove } from '#/config/SeqType.js';
 
 import Entity from '#/dash3d/entity/Entity.js';
 
@@ -56,17 +56,19 @@ export default abstract class PathingEntity extends Entity {
     routeFlagX: Int32Array = new Int32Array(10);
     routeFlagZ: Int32Array = new Int32Array(10);
     routeRun: boolean[] = new TypedArray1d(10, false);
-    seqTrigger: number = 0;
+    seqDelayMove: number = 0;
 
     lastMask: number = -1;
     lastMaskCycle: number = -1;
     lastFaceX: number = -1;
     lastFaceZ: number = -1;
 
+    preanimRouteLength: number = 0;
+
     abstract isVisibleNow(): boolean;
 
     move(teleport: boolean, x: number, z: number): void {
-        if (this.primarySeqId !== -1 && SeqType.instances[this.primarySeqId].seqPriority <= 1) {
+        if (this.primarySeqId !== -1 && SeqType.instances[this.primarySeqId].postanimMove === PostanimMove.ABORTANIM) {
             this.primarySeqId = -1;
         }
 
@@ -93,7 +95,8 @@ export default abstract class PathingEntity extends Entity {
         }
 
         this.routeLength = 0;
-        this.seqTrigger = 0;
+        this.preanimRouteLength = 0;
+        this.seqDelayMove = 0;
         this.routeFlagX[0] = x;
         this.routeFlagZ[0] = z;
         this.x = this.routeFlagX[0] * 128 + this.size * 64;
@@ -126,7 +129,7 @@ export default abstract class PathingEntity extends Entity {
             nextZ--;
         }
 
-        if (this.primarySeqId !== -1 && SeqType.instances[this.primarySeqId].seqPriority <= 1) {
+        if (this.primarySeqId !== -1 && SeqType.instances[this.primarySeqId].postanimMove === PostanimMove.ABORTANIM) {
             this.primarySeqId = -1;
         }
 
@@ -143,5 +146,10 @@ export default abstract class PathingEntity extends Entity {
         this.routeFlagX[0] = nextX;
         this.routeFlagZ[0] = nextZ;
         this.routeRun[0] = running;
+    }
+
+    clearRoute() {
+        this.routeLength = 0;
+        this.preanimRouteLength = 0;
     }
 }

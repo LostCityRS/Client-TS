@@ -5,6 +5,23 @@ import AnimFrame from '#/graphics/AnimFrame.js';
 import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
 
+export const enum PreanimMove {
+    DELAYMOVE = 0,
+    DELAYANIM = 1,
+    MERGE = 2
+}
+
+export const enum PostanimMove {
+    DELAYMOVE = 0,
+    ABORTANIM = 1,
+    MERGE = 2
+}
+
+export const enum RestartMode {
+    RESET = 1,
+    RESETLOOP = 2
+}
+
 export default class SeqType extends ConfigType {
     static totalCount: number = 0;
     static instances: SeqType[] = [];
@@ -21,6 +38,9 @@ export default class SeqType extends ConfigType {
     lefthand: number = -1;
     replaycount: number = 99;
     seqDuration: number = 0;
+    preanimMove: number = -1;
+    postanimMove: number = -1;
+    restartMode: number = -1;
 
 
     static unpack(config: Jagfile): void {
@@ -28,6 +48,23 @@ export default class SeqType extends ConfigType {
         this.totalCount = dat.g2();
         for (let i: number = 0; i < this.totalCount; i++) {
             const seq: SeqType = new SeqType(i).unpackType(dat);
+            
+            if (seq.preanimMove === -1) {
+                if (seq.walkmerge === null) {
+                    seq.preanimMove = PreanimMove.DELAYMOVE;
+                } else {
+                    seq.preanimMove = PreanimMove.MERGE;
+                }
+            }
+
+            if (seq.postanimMove === -1) {
+                if (seq.walkmerge === null) {
+                    seq.preanimMove = PostanimMove.DELAYMOVE;
+                } else {
+                    seq.postanimMove = PostanimMove.MERGE;
+                }
+            }
+
             if (seq.seqFrameCount === 0) {
                 seq.seqFrameCount = 1;
 
@@ -91,7 +128,12 @@ export default class SeqType extends ConfigType {
             this.lefthand = dat.g2();
         } else if (code === 8) {
             this.replaycount = dat.g1();
-        } else {
+        } else if (code === 9) {
+            this.preanimMove = dat.g1();
+        } else if (code === 10) {
+            this.postanimMove = dat.g1();
+        } else if (code === 11) {
+            this.restartMode = dat.g1();
             console.log('Error unrecognised seq config code: ', code);
         }
     }
