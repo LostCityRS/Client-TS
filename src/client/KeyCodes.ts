@@ -50,6 +50,7 @@ KeyCodes.set('~', { code: 192, ch: 126 });
 KeyCodes.set('!', { code: 49, ch: 33 });
 KeyCodes.set('@', { code: 50, ch: 64 });
 KeyCodes.set('#', { code: 51, ch: 35 });
+KeyCodes.set('£', { code: 51, ch: 163 });
 KeyCodes.set('$', { code: 52, ch: 36 });
 KeyCodes.set('%', { code: 53, ch: 37 });
 KeyCodes.set('^', { code: 54, ch: 94 });

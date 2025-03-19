@@ -1,5 +1,8 @@
 import { canvas, canvas2d } from "#/graphics/Canvas";
 
+// ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"£$%^&*()-_=+[{]};:\'@#~,<.>/?\\| 
+// ^ Allowed characters in client
+
 const KEYMAP_REGULAR = [
     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',  // 10 chars
     'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',  // 9 chars
@@ -16,9 +19,16 @@ const KEYMAP_SHIFT = [
 
 const KEYMAP_SYMBOLS = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  // 10 chars
-    '!', '"', '$', '%', '^', '&', '*', '(', ')',  // 9 chars
-    '-', '+', '=', '<', '>', '~', ';', ':', 'Del',  // 9 chars
-    'abc', '/', ' ', '?', 'Enter'
+    '!', '"', '$', '%', '_', '&', '*', '(', ')',  // 9 chars
+    '1/2', '@', '=', '<', '>', '~', ';', ':', 'Del',  // 9 chars
+    'abc', '#', ' ', '?', 'Enter'
+];
+
+const KEYMAP_SYMBOLS_EXTRA = [
+    '£', '^',  '[', ']', '{', '}', '\'', '-', '+', '/',
+    '\\', '|', '', '', '', '', '', '', '',
+    '2/2', '', '', '', '', '', '', '', 'Del',
+    'abc', '', ' ', '', 'Enter'
 ];
 
 // Offset for addressing individual rows; four rows total.
@@ -49,7 +59,8 @@ interface KeyBox {
 enum KeyboardMode {
     Regular,
     Shift,
-    Symbols
+    Symbols,
+    SymbolsExtra,
 };
 
 /**
@@ -80,7 +91,7 @@ class MobileKeyboard {
             }
         }
         const char = this.getCharForIndex(index);
-        if (char.length > 1) {
+        if (char !== undefined && char.length > 1) {
             // Special keys have more than one character, so shade darker.
             return '#a9afba';
         }
@@ -123,6 +134,8 @@ class MobileKeyboard {
             return KEYMAP_SHIFT[index];
         } else if (this.mode === KeyboardMode.Symbols) {
             return KEYMAP_SYMBOLS[index];
+        } else if (this.mode === KeyboardMode.SymbolsExtra) {
+            return KEYMAP_SYMBOLS_EXTRA[index];
         }
         return KEYMAP_REGULAR[index];
     }
@@ -188,6 +201,7 @@ class MobileKeyboard {
      * Show the keyboard.
      */
     public show() {
+        this.mode = KeyboardMode.Regular;
         this.displayed = true;
     }
 
@@ -301,8 +315,11 @@ class MobileKeyboard {
                     this.mode = KeyboardMode.Regular;
                 }
                 return true;
-            } else if (char === '123') {
+            } else if (char === '123' || char === '2/2') {
                 this.mode = KeyboardMode.Symbols;
+                return true;
+            } else if (char === '1/2') {
+                this.mode = KeyboardMode.SymbolsExtra;
                 return true;
             } else if (char === 'abc') {
                 this.mode = KeyboardMode.Regular;
