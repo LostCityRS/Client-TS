@@ -6,6 +6,7 @@ import { sleep } from '#/util/JsUtil.js';
 
 import { CanvasEnabledKeys, KeyCodes } from '#/client/KeyCodes.js';
 import InputTracking from '#/client/InputTracking.js';
+import { MobileKeyboard } from '#3rdparty/deps.js';
 
 export default abstract class GameShell {
     protected slowestMS: number = 0.0; // custom
@@ -40,7 +41,6 @@ export default abstract class GameShell {
     protected keyQueueWritePos: number = 0;
 
     // touch controls
-    private input: HTMLElement | null = null;
     private touching: boolean = false;
     private startedInViewport: boolean = false;
     private startedInTabArea: boolean = false;
@@ -208,6 +208,10 @@ export default abstract class GameShell {
             const time: number = performance.now();
 
             await this.draw();
+            // CUSTOM: MobileKeyboard
+            if (this.isMobile) {
+                MobileKeyboard.draw();
+            }
 
             this.frameTime[this.fpos] = (performance.now() - time) / 1000;
             this.fpos = (this.fpos + 1) % this.frameTime.length;
@@ -414,6 +418,14 @@ export default abstract class GameShell {
                 this.mouseButton = 1;
             }
         }
+        // CUSTOM: Mobile Keyboard
+        if (MobileKeyboard.isDisplayed()) {
+            if (MobileKeyboard.captureMouseDown(this.mouseX, this.mouseY)) {
+                // Negate MouseDown if Keyboard shown and inside of Keyboard area
+                this.mouseButton = 0;
+                this.mouseClickButton = 0;
+            }
+        }
 
         if (InputTracking.trackingActive) {
             InputTracking.mousePressed(this.mouseClickX, this.mouseClickY, e.button);
@@ -427,6 +439,19 @@ export default abstract class GameShell {
 
         if (InputTracking.trackingActive) {
             InputTracking.mouseReleased(e.button);
+        }
+        // CUSTOM: Mobile Keyboard
+        if (this.isMobile) {
+            if (this.insideMobileInputArea() && !MobileKeyboard.isDisplayed()) {
+                // Show Keyboard if user presses input field
+                MobileKeyboard.show();
+            } else if (MobileKeyboard.isDisplayed()) {
+                if (!MobileKeyboard.captureMouseUp(this.mouseX, this.mouseY)) {
+                    // Hide Keyboard on mouse up outside of bounds
+                    MobileKeyboard.hide();
+                    this.refresh();
+                }
+            }
         }
     }
 
@@ -460,6 +485,12 @@ export default abstract class GameShell {
         this.setMousePosition(e);
 
         this.idleCycles = Date.now();
+        // CUSTOM: MobileKeyboard
+        if (this.isMobile && this.touching) {
+            if (MobileKeyboard.isDisplayed()) {
+                MobileKeyboard.notifyTouchMove(this.mouseX, this.mouseY);
+            }
+        }
 
         if (InputTracking.trackingActive) {
             InputTracking.mouseMoved(this.mouseX, this.mouseY);
@@ -492,11 +523,6 @@ export default abstract class GameShell {
     private ontouchstart(e: TouchEvent) {
         if (!this.isMobile) {
             return;
-        }
-
-        if (this.input !== null) {
-            this.input.parentNode?.removeChild(this.input);
-            this.input = null;
         }
 
         this.touching = true;
@@ -538,92 +564,6 @@ export default abstract class GameShell {
             this.touching = false;
             return;
         } else if (this.insideMobileInputArea()) {
-            if (this.input !== null) {
-                if (this.input.parentNode?.contains(this.input)) {
-                    this.input.parentNode?.removeChild(this.input);
-                }
-                this.input = null;
-            }
-
-            const input: HTMLInputElement = document.createElement('input');
-            if (this.insideUsernameArea()) {
-                input.setAttribute('id', 'username');
-                input.setAttribute('placeholder', 'Username');
-            } else if (this.inPasswordArea()) {
-                input.setAttribute('id', 'password');
-                input.setAttribute('placeholder', 'Password');
-            } else if (this.insideChatInputArea()) {
-                input.setAttribute('id', 'chatinput');
-                input.setAttribute('placeholder', 'Chatinput');
-            } else if (this.insideChatPopupArea()) {
-                input.setAttribute('id', 'chatpopup');
-                input.setAttribute('placeholder', 'Chatpopup');
-            } else if (this.insideReportInterfaceTextArea()) {
-                input.setAttribute('id', 'reportinput');
-                input.setAttribute('placeholder', 'Username');
-            }
-            if (this.isAndroid) {
-                // this forces android to not use compose text for oninput. its good enough.
-                input.setAttribute('type', 'password');
-            } else {
-                input.setAttribute('type', this.inPasswordArea() ? 'password' : 'text');
-            }
-            input.setAttribute('autofocus', 'autofocus');
-            input.setAttribute('spellcheck', 'false');
-            input.setAttribute('autocomplete', 'off');
-            input.setAttribute('style', `position: fixed; left: ${clientX}px; top: ${clientY}px; width: 1px; height: 1px; opacity: 0;`);
-            document.body.appendChild(input);
-
-            input.focus();
-            input.click();
-
-            if (this.isAndroid) {
-                input.oninput = (e: Event): void => {
-                    if (!(e instanceof InputEvent)) {
-                        return;
-                    }
-                    const input: InputEvent = e as InputEvent;
-                    const data: string | null = input.data;
-
-                    if (data === null) {
-                        return;
-                    }
-
-                    if (input.inputType !== 'insertText') {
-                        return;
-                    }
-
-                    this.onkeydown(new KeyboardEvent('keydown', { key: data, code: data }));
-                };
-            }
-
-            input.onkeydown = (e: KeyboardEvent): void => {
-                if (this.isAndroid) {
-                    if (e.key === 'Enter' || e.key === 'Backspace') {
-                        this.onkeydown(new KeyboardEvent('keydown', { key: e.key, code: e.key }));
-                    }
-                    return;
-                }
-                this.onkeydown(new KeyboardEvent('keydown', { key: e.key, code: e.key }));
-            };
-
-            input.onkeyup = (e: KeyboardEvent): void => {
-                if (this.isAndroid) {
-                    if (e.key === 'Enter' || e.key === 'Backspace') {
-                        this.onkeyup(new KeyboardEvent('keyup', { key: e.key, code: e.key }));
-                    }
-                    return;
-                }
-                this.onkeyup(new KeyboardEvent('keyup', { key: e.key, code: e.key }));
-            };
-
-            input.onfocus = (e: FocusEvent): void => {
-                this.input?.parentNode?.removeChild(this.input);
-                this.input = null;
-                this.onfocus(e);
-            };
-
-            this.input = input;
             this.touching = false;
             return;
         }
@@ -659,7 +599,7 @@ export default abstract class GameShell {
 
         this.nx = touch.screenX | 0;
         this.ny = touch.screenY | 0;
-
+        if (!MobileKeyboard.isDisplayed()) {  // CUSTOM: MobileKeyboard
         if (this.startedInViewport && this.getViewportInterfaceId() === -1) {
             // Camera panning
             if (this.mx - this.nx > 0) {
@@ -677,6 +617,7 @@ export default abstract class GameShell {
             // Drag and drop
             this.onmousedown(new MouseEvent('mousedown', { clientX, clientY, button: 1 }));
         }
+        }  // CUSTOM: MobileKeyboard
 
         this.mx = this.nx;
         this.my = this.ny;
