@@ -370,8 +370,12 @@ class MobileKeyboard {
         }
         if (deltaX > DRAG_MIN_DIST_PX || deltaY > DRAG_MIN_DIST_PX) {
             // Dragged further than the minimum distance in one touch event.
-            this.startX = x - this.touchStartAtX;
-            this.startY = y - this.touchStartAtY;
+            // Restrict movement such that the keyboard can't be repositioned out of sight
+            // Otherwise, it's possible to make the keyboard unusable!
+            const newStartX = Math.max(0, Math.min(789 - this.width, x - this.touchStartAtX));
+            const newStartY = Math.max(0, Math.min(532 - this.height, y - this.touchStartAtY));
+            this.startX = newStartX;
+            this.startY = newStartY;
             // Focus event forces a re-draw of canvas
             canvas.dispatchEvent(new FocusEvent('focus'));
         }
