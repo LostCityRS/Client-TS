@@ -1,4 +1,4 @@
-import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume } from '#3rdparty/deps.js';
+import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume, MobileKeyboard } from '#3rdparty/deps.js';
 
 import GameShell from '#/client/GameShell.js';
 import InputTracking from '#/client/InputTracking.js';
@@ -10527,5 +10527,9 @@ export class Client extends GameShell {
         }
 
         this.imageTitle1?.draw(661, 0);
+
+        if (this.isMobile) {
+            MobileKeyboard.draw();
+        }
     }
 }
