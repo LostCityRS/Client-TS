@@ -7,6 +7,7 @@ import PathingEntity from '#/dash3d/entity/PathingEntity.js';
 import Model from '#/graphics/Model.js';
 
 export const enum NpcUpdate {
+    DAMAGE2 = 0x1,
     ANIM = 0x2,
     FACE_ENTITY = 0x4,
     SAY = 0x8,

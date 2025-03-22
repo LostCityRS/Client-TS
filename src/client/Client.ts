@@ -3432,13 +3432,29 @@ export class Client extends GameShell {
                 }
             }
 
-            if (entity.combatCycle > this.loopCycle + 330) {
-                this.projectFromEntity(entity, (entity.maxY / 2) | 0);
 
-                if (this.projectX > -1) {
-                    this.imageHitmarks[entity.damageType]?.draw(this.projectX - 12, this.projectY - 12);
-                    this.fontPlain11?.drawStringCenter(this.projectX, this.projectY + 4, entity.damage.toString(), Colors.BLACK);
-                    this.fontPlain11?.drawStringCenter(this.projectX - 1, this.projectY + 3, entity.damage.toString(), Colors.WHITE);
+            for (let i = 0; i < 4; ++i) {
+                if (entity.damageCycles[i] > this.loopCycle) {
+                    this.projectFromEntity(entity, (entity.maxY / 2) | 0);
+        
+                    if (this.projectX <= -1) {
+                        continue;
+                    }
+                    if (i == 1) {
+                        this.projectY -= 20;
+                    }
+                    if (i == 2) {
+                        this.projectX -= 15;
+                        this.projectY -= 10;
+                    }
+                    if (i == 3) {
+                        this.projectX += 15;
+                        this.projectY -= 10;
+                    }
+
+                    this.imageHitmarks[entity.damageTypes[i]]?.draw(this.projectX - 12, this.projectY - 12);
+                    this.fontPlain11?.drawStringCenter(this.projectX, this.projectY + 4, entity.damageValues[i].toString(), Colors.BLACK);
+                    this.fontPlain11?.drawStringCenter(this.projectX - 1, this.projectY + 3, entity.damageValues[i].toString(), Colors.WHITE);
                 }
             }
         }
@@ -8839,8 +8855,9 @@ export class Client extends GameShell {
             }
         }
         if ((mask & PlayerUpdate.DAMAGE) !== 0) {
-            player.damage = buf.g1();
-            player.damageType = buf.g1();
+            const damage = buf.g1();
+            const damageType = buf.g1();
+            player.pushDamage(this.loopCycle, damageType, damage);
             player.combatCycle = this.loopCycle + 400;
             player.health = buf.g1();
             player.totalHealth = buf.g1();
@@ -8910,6 +8927,14 @@ export class Client extends GameShell {
             player.forceMoveStartCycle = buf.g2() + this.loopCycle;
             player.forceMoveFaceDirection = buf.g1();
             player.clearRoute();
+        }
+        if ((mask & PlayerUpdate.DAMAGE2) !== 0) {
+            const damage = buf.g1();
+            const damageType = buf.g1();
+            player.pushDamage(this.loopCycle, damageType, damage);
+            player.combatCycle = this.loopCycle + 400;
+            player.health = buf.g1();
+            player.totalHealth = buf.g1();
         }
     }
 
@@ -9069,7 +9094,15 @@ export class Client extends GameShell {
 
             npc.lastMask = mask;
             npc.lastMaskCycle = this.loopCycle;
-
+            
+            if ((mask & NpcUpdate.DAMAGE2) !== 0) {
+                const damage = buf.g1();
+                const damageType = buf.g1();
+                npc.pushDamage(this.loopCycle, damageType, damage);
+                npc.combatCycle = this.loopCycle + 400;
+                npc.health = buf.g1();
+                npc.totalHealth = buf.g1();
+            }
             if ((mask & NpcUpdate.ANIM) !== 0) {
                 let seqId: number = buf.g2();
                 if (seqId === 65535) {
@@ -9110,8 +9143,9 @@ export class Client extends GameShell {
                 npc.chatTimer = 100;
             }
             if ((mask & NpcUpdate.DAMAGE) !== 0) {
-                npc.damage = buf.g1();
-                npc.damageType = buf.g1();
+                const damage = buf.g1();
+                const damageType = buf.g1();
+                npc.pushDamage(this.loopCycle, damageType, damage);
                 npc.combatCycle = this.loopCycle + 400;
                 npc.health = buf.g1();
                 npc.totalHealth = buf.g1();

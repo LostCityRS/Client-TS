@@ -24,7 +24,8 @@ export const enum PlayerUpdate {
     CHAT = 0x40,
     BIG_UPDATE = 0x80,
     SPOTANIM = 0x100,
-    EXACT_MOVE = 0x200
+    EXACT_MOVE = 0x200,
+    DAMAGE2 = 0x400,
 }
 
 const enum HairColor {
