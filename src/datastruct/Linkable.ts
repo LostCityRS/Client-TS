@@ -4,7 +4,7 @@ export default class Linkable {
     prev: Linkable | null = null;
 
     unlink(): void {
-        if (this.prev != null) {
+        if (this.prev !== null) {
             this.prev.next = this.next;
             if (this.next) {
                 this.next.prev = this.prev;

@@ -7,6 +7,7 @@ import { sleep } from '#/util/JsUtil.js';
 import { CanvasEnabledKeys, KeyCodes } from '#/client/KeyCodes.js';
 import InputTracking from '#/client/InputTracking.js';
 import { MobileKeyboard } from '#3rdparty/deps.js';
+import { MouseButton } from '#/client/MouseButton.ts';
 
 export default abstract class GameShell {
     protected slowestMS: number = 0.0; // custom
@@ -64,7 +65,7 @@ export default abstract class GameShell {
     protected async draw() {}
     protected async refresh() {}
 
-    constructor(resizetoFit: boolean = false) {
+    protected constructor(resizetoFit: boolean = false) {
         canvas.tabIndex = -1;
         canvas2d.fillStyle = 'black';
         canvas2d.fillRect(0, 0, canvas.width, canvas.height);
@@ -194,7 +195,7 @@ export default abstract class GameShell {
 
             while (count < 256) {
                 await this.update();
-                this.mouseClickButton = 0;
+                this.mouseClickButton = MouseButton.NONE;
                 this.keyQueueReadPos = this.keyQueueWritePos;
                 count += ratio;
             }
@@ -327,7 +328,7 @@ export default abstract class GameShell {
         let ch: number = keyCode.ch;
 
         if (e.ctrlKey) {
-            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch == '_'.charCodeAt(0)) {
+            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch === '_'.charCodeAt(0)) {
                 ch -= 'A'.charCodeAt(0) - 1;
             } else if (ch >= 'a'.charCodeAt(0) && ch <= 'z'.charCodeAt(0)) {
                 ch -= 'a'.charCodeAt(0) - 1;
@@ -363,7 +364,7 @@ export default abstract class GameShell {
         let ch: number = keyCode.ch;
 
         if (e.ctrlKey) {
-            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch == '_'.charCodeAt(0)) {
+            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch === '_'.charCodeAt(0)) {
                 ch -= 'A'.charCodeAt(0) - 1;
             } else if (ch >= 'a'.charCodeAt(0) && ch <= 'z'.charCodeAt(0)) {
                 ch -= 'a'.charCodeAt(0) - 1;
@@ -395,35 +396,35 @@ export default abstract class GameShell {
 
         if (this.isMobile && !this.isCapacitor) {
             if (this.insideMobileInputArea() && !this.insideChatPopupArea()) {
-                this.mouseClickButton = 1;
-                this.mouseButton = 1;
+                this.mouseClickButton = MouseButton.LEFT;
+                this.mouseButton = MouseButton.LEFT;
                 return;
             }
 
             const eventTime: number = e.timeStamp;
             if (eventTime >= this.time + 500) {
-                this.mouseClickButton = 2;
-                this.mouseButton = 2;
+                this.mouseClickButton = MouseButton.RIGHT;
+                this.mouseButton = MouseButton.RIGHT;
             } else {
-                this.mouseClickButton = 1;
-                this.mouseButton = 1;
+                this.mouseClickButton = MouseButton.LEFT;
+                this.mouseButton = MouseButton.LEFT;
             }
         } else {
             if (e.button === 2) {
-                this.mouseClickButton = 2;
-                this.mouseButton = 2;
+                this.mouseClickButton = MouseButton.RIGHT;
+                this.mouseButton = MouseButton.RIGHT;
             } else if (e.button === 0) {
                 // custom: explicitly check left-mouse button so middle mouse is ignored
-                this.mouseClickButton = 1;
-                this.mouseButton = 1;
+                this.mouseClickButton = MouseButton.LEFT;
+                this.mouseButton = MouseButton.LEFT;
             }
         }
         // CUSTOM: Mobile Keyboard
         if (MobileKeyboard.isDisplayed()) {
             if (MobileKeyboard.captureMouseDown(this.mouseX, this.mouseY)) {
                 // Negate MouseDown if Keyboard shown and inside of Keyboard area
-                this.mouseButton = 0;
-                this.mouseClickButton = 0;
+                this.mouseButton = MouseButton.NONE;
+                this.mouseClickButton = MouseButton.NONE;
             }
         }
 
@@ -435,7 +436,7 @@ export default abstract class GameShell {
     private onmouseup(e: MouseEvent) {
         this.setMousePosition(e);
         this.idleCycles = Date.now();
-        this.mouseButton = 0;
+        this.mouseButton = MouseButton.NONE;
 
         if (InputTracking.trackingActive) {
             InputTracking.mouseReleased(e.button);
@@ -472,7 +473,7 @@ export default abstract class GameShell {
         this.mouseY = -1;
 
         // custom (prevent mouse click from being stuck)
-        this.mouseButton = 0;
+        this.mouseButton = MouseButton.NONE;
         this.mouseClickX = -1;
         this.mouseClickY = -1;
 

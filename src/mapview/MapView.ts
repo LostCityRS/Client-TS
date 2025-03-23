@@ -1,3 +1,5 @@
+// noinspection JSSuspiciousNameCombination
+
 import GameShell from '#/client/GameShell.ts';
 import Pix24 from '#/graphics/Pix24.ts';
 import Pix2D from '#/graphics/Pix2D.ts';
@@ -8,6 +10,10 @@ import Jagfile from '#/io/Jagfile.ts';
 import Packet from '#/io/Packet.ts';
 import { TypedArray1d, TypedArray2d } from '#/util/Arrays.ts';
 import { downloadUrl, sleep } from '#/util/JsUtil.ts';
+import { LocAngle } from '#/dash3d/LocAngle.ts';
+import LocShape from '#/dash3d/LocShape.ts';
+import Pix3D from '#/graphics/Pix3D.ts';
+import { MouseButton } from '#/client/MouseButton.ts';
 
 export class MapView extends GameShell {
     static shouldDrawBorders: boolean = false;
@@ -312,7 +318,7 @@ export class MapView extends GameShell {
 
                 if (this.flashTimer > 0 && this.flashTimer % 10 < 5) {
                     for (let i: number = 0; i < this.activeMapFunctionCount; i++) {
-                        if (this.activeMapFunctions[i] == this.currentKey) {
+                        if (this.activeMapFunctions[i] === this.currentKey) {
                             const x: number = (this.overviewX + (this.imageOverviewWidth * this.activeMapFunctionX[i]) / this.sizeX) | 0;
                             const y: number = (this.overviewY + (this.imageOverviewHeight * this.activeMapFunctionZ[i]) / this.sizeZ) | 0;
                             Pix2D.fillCircle(x, y, 2, 0xffff00, 256);
@@ -339,10 +345,10 @@ export class MapView extends GameShell {
                         this.b12?.drawString(this.keyX + 21, y + 14, this.keyNames[row + this.lastKeyPage], 0);
 
                         let rgb: number = 0xffffff;
-                        if (this.currentKeyHover == row + this.lastKeyPage) {
+                        if (this.currentKeyHover === row + this.lastKeyPage) {
                             rgb = 0xbbaaaa;
                         }
-                        if (this.flashTimer > 0 && this.flashTimer % 10 < 5 && this.currentKey == row + this.lastKeyPage) {
+                        if (this.flashTimer > 0 && this.flashTimer % 10 < 5 && this.currentKey === row + this.lastKeyPage) {
                             rgb = 0xffff00;
                         }
 
@@ -357,25 +363,25 @@ export class MapView extends GameShell {
             this.drawString(this.keyX, this.keyY + this.keyHeight, this.keyWidth, 18, this.colorInactiveBorderTL, this.colorInactive, this.colorInactiveBorderBR, 'Key');
 
             let y = this.height - this.keyY - 20 + 1;
-            if (this.targetZoom == 3.0) {
+            if (this.targetZoom === 3.0) {
                 this.drawString(170, y, 50, 30, this.colorActiveBorderTL, this.colorActive, this.colorActiveBorderBR, '37%');
             } else {
                 this.drawString(170, y, 50, 30, this.colorInactiveBorderTL, this.colorInactive, this.colorInactiveBorderBR, '37%');
             }
 
-            if (this.targetZoom == 4.0) {
+            if (this.targetZoom === 4.0) {
                 this.drawString(230, y, 50, 30, this.colorActiveBorderTL, this.colorActive, this.colorActiveBorderBR, '50%');
             } else {
                 this.drawString(230, y, 50, 30, this.colorInactiveBorderTL, this.colorInactive, this.colorInactiveBorderBR, '50%');
             }
 
-            if (this.targetZoom == 6.0) {
+            if (this.targetZoom === 6.0) {
                 this.drawString(290, y, 50, 30, this.colorActiveBorderTL, this.colorActive, this.colorActiveBorderBR, '75%');
             } else {
                 this.drawString(290, y, 50, 30, this.colorInactiveBorderTL, this.colorInactive, this.colorInactiveBorderBR, '75%');
             }
 
-            if (this.targetZoom == 8.0) {
+            if (this.targetZoom === 8.0) {
                 this.drawString(350, y, 50, 30, this.colorActiveBorderTL, this.colorActive, this.colorActiveBorderBR, '100%');
             } else {
                 this.drawString(350, y, 50, 30, this.colorInactiveBorderTL, this.colorInactive, this.colorInactiveBorderBR, '100%');
@@ -394,19 +400,19 @@ export class MapView extends GameShell {
     }
 
     async update(): Promise<void> {
-        if (this.actionKey[1] == 1) {
+        if (this.actionKey[1] === 1) {
             this.offsetX = (this.offsetX - 16.0 / this.zoom) | 0;
             this.redraw = true;
         }
-        if (this.actionKey[2] == 1) {
+        if (this.actionKey[2] === 1) {
             this.offsetX = (this.offsetX + 16.0 / this.zoom) | 0;
             this.redraw = true;
         }
-        if (this.actionKey[3] == 1) {
+        if (this.actionKey[3] === 1) {
             this.offsetZ = (this.offsetZ - 16.0 / this.zoom) | 0;
             this.redraw = true;
         }
-        if (this.actionKey[4] == 1) {
+        if (this.actionKey[4] === 1) {
             this.offsetZ = (this.offsetZ + 16.0 / this.zoom) | 0;
             this.redraw = true;
         }
@@ -418,42 +424,42 @@ export class MapView extends GameShell {
                 break;
             }
 
-            if (key == '1'.charCodeAt(0)) {
+            if (key === '1'.charCodeAt(0)) {
                 this.targetZoom = 3.0;
                 this.redraw = true;
-            } else if (key == '2'.charCodeAt(0)) {
+            } else if (key === '2'.charCodeAt(0)) {
                 this.targetZoom = 4.0;
                 this.redraw = true;
-            } else if (key == '3'.charCodeAt(0)) {
+            } else if (key === '3'.charCodeAt(0)) {
                 this.targetZoom = 6.0;
                 this.redraw = true;
-            } else if (key == '4'.charCodeAt(0)) {
+            } else if (key === '4'.charCodeAt(0)) {
                 this.targetZoom = 8.0;
                 this.redraw = true;
-            } else if (key == 'k'.charCodeAt(0) || key == 'K'.charCodeAt(0)) {
+            } else if (key === 'k'.charCodeAt(0) || key === 'K'.charCodeAt(0)) {
                 this.showKey = !this.showKey;
                 this.redraw = true;
-            } else if (key == 'o'.charCodeAt(0) || key == 'O'.charCodeAt(0)) {
+            } else if (key === 'o'.charCodeAt(0) || key === 'O'.charCodeAt(0)) {
                 this.showOverview = !this.showOverview;
                 this.redraw = true;
-            } else if (key == 'e'.charCodeAt(0) || key == 'E'.charCodeAt(0)) {
+            } else if (key === 'e'.charCodeAt(0) || key === 'E'.charCodeAt(0)) {
                 // todo: export as png and prompt user to download file
-            } else if (key == 'n'.charCodeAt(0) || key == 'N'.charCodeAt(0)) {
+            } else if (key === 'n'.charCodeAt(0) || key === 'N'.charCodeAt(0)) {
                 MapView.shouldDrawNpcs = !MapView.shouldDrawNpcs;
                 this.redraw = true;
-            } else if (key == 'i'.charCodeAt(0) || key == 'I'.charCodeAt(0)) {
+            } else if (key === 'i'.charCodeAt(0) || key === 'I'.charCodeAt(0)) {
                 MapView.shouldDrawItems = !MapView.shouldDrawItems;
                 this.redraw = true;
-            } else if (key == 'l'.charCodeAt(0) || key == 'L'.charCodeAt(0)) {
+            } else if (key === 'l'.charCodeAt(0) || key === 'L'.charCodeAt(0)) {
                 MapView.shouldDrawLabels = !MapView.shouldDrawLabels;
                 this.redraw = true;
-            } else if (key == 'b'.charCodeAt(0) || key == 'B'.charCodeAt(0)) {
+            } else if (key === 'b'.charCodeAt(0) || key === 'B'.charCodeAt(0)) {
                 MapView.shouldDrawBorders = !MapView.shouldDrawBorders;
                 this.redraw = true;
             }
         } while (key > 0);
 
-        if (this.mouseClickButton == 1) {
+        if (this.mouseClickButton === MouseButton.LEFT) {
             this.lastMouseClickX = this.mouseClickX;
             this.lastMouseClickY = this.mouseClickY;
             this.lastOffsetX = this.offsetX;
@@ -507,7 +513,7 @@ export class MapView extends GameShell {
                         if (this.mouseY >= y && this.mouseY < y + 17) {
                             this.currentKeyHover = row + this.lastKeyPage;
 
-                            if (this.mouseClickButton == 1) {
+                            if (this.mouseClickButton === MouseButton.LEFT) {
                                 this.currentKey = row + this.lastKeyPage;
                                 this.flashTimer = 50;
                             }
@@ -518,16 +524,16 @@ export class MapView extends GameShell {
                 }
             }
 
-            if (this.currentKeyHover != this.lastKeyHover) {
+            if (this.currentKeyHover !== this.lastKeyHover) {
                 this.lastKeyHover = this.currentKeyHover;
                 this.redraw = true;
             }
         }
 
-        if ((this.mouseButton == 1 || this.mouseClickButton == 1) && this.showOverview) {
+        if ((this.mouseButton === MouseButton.LEFT || this.mouseClickButton === MouseButton.LEFT) && this.showOverview) {
             let mouseClickX: number = this.mouseClickX;
             let mouseClickY: number = this.mouseClickY;
-            if (this.mouseButton == 1) {
+            if (this.mouseButton === MouseButton.LEFT) {
                 mouseClickX = this.mouseX;
                 mouseClickY = this.mouseY;
             }
@@ -540,7 +546,7 @@ export class MapView extends GameShell {
             }
         }
 
-        if (this.mouseButton == 1 && this.lastMouseClickX != -1) {
+        if (this.mouseButton === MouseButton.LEFT && this.lastMouseClickX !== -1) {
             this.offsetX = this.lastOffsetX + ((((this.lastMouseClickX - this.mouseX) * 2.0) / this.targetZoom) | 0);
             this.offsetZ = this.lastOffsetZ + ((((this.lastMouseClickY - this.mouseY) * 2.0) / this.targetZoom) | 0);
             this.redraw = true;
@@ -653,7 +659,7 @@ export class MapView extends GameShell {
     clearEmptyTiles(): void {
         for (let x: number = 0; x < this.sizeX; x++) {
             for (let z: number = 0; z < this.sizeZ; z++) {
-                if (this.underlayTiles[x][z] == 0 && this.overlayTiles[x][z] == 0) {
+                if (this.underlayTiles[x][z] === 0 && this.overlayTiles[x][z] === 0) {
                     this.floormapColors[x][z] = 0;
                 }
             }
@@ -685,7 +691,7 @@ export class MapView extends GameShell {
                     b += (tileNorth & 0x3ff) - (tileSouth & 0x3ff);
 
                     if (b > 0) {
-                        this.floormapColors[x][z] = this.convertHsl(r / 8533.0, g / 8533.0, b / 8533.0);
+                        this.floormapColors[x][z] = Pix3D.convertHsl(r / 8533.0, g / 8533.0, b / 8533.0);
                     }
                 }
             }
@@ -734,7 +740,7 @@ export class MapView extends GameShell {
             } else {
                 for (let i: number = -4096; i < 0; i++) {
                     const opcode: number = data.g1();
-                    if (opcode != 0) {
+                    if (opcode !== 0) {
                         data.g1();
                     }
                 }
@@ -781,7 +787,7 @@ export class MapView extends GameShell {
                     for (let z: number = -64; z < 0; z++) {
                         do {
                             opcode = data.g1();
-                        } while (opcode != 0);
+                        } while (opcode !== 0);
                     }
                 }
             }
@@ -798,7 +804,7 @@ export class MapView extends GameShell {
                     let zIndex: number = this.sizeZ - mz - 1;
 
                     for (let z: number = -64; z < 0; z++) {
-                        this.objTiles[x + mx][zIndex--] = data.g1() == 1;
+                        this.objTiles[x + mx][zIndex--] = data.g1() === 1;
                     }
                 }
             } else {
@@ -817,7 +823,7 @@ export class MapView extends GameShell {
                     let zIndex: number = this.sizeZ - mz - 1;
 
                     for (let z: number = -64; z < 0; z++) {
-                        this.npcTiles[x + mx][zIndex--] = data.g1() == 1;
+                        this.npcTiles[x + mx][zIndex--] = data.g1() === 1;
                     }
                 }
             } else {
@@ -827,66 +833,6 @@ export class MapView extends GameShell {
     }
 
     // ----
-    convertHsl(hue: number, saturation: number, lightness: number): number {
-        let r: number = lightness;
-        let g: number = lightness;
-        let b: number = lightness;
-
-        if (saturation !== 0.0) {
-            let q: number;
-            if (lightness < 0.5) {
-                q = lightness * (saturation + 1.0);
-            } else {
-                q = lightness + saturation - lightness * saturation;
-            }
-
-            const p: number = lightness * 2.0 - q;
-            let t: number = hue + 0.3333333333333333;
-            if (t > 1.0) {
-                t--;
-            }
-
-            let d11: number = hue - 0.3333333333333333;
-            if (d11 < 0.0) {
-                d11++;
-            }
-
-            if (t * 6.0 < 1.0) {
-                r = p + (q - p) * 6.0 * t;
-            } else if (t * 2.0 < 1.0) {
-                r = q;
-            } else if (t * 3.0 < 2.0) {
-                r = p + (q - p) * (0.6666666666666666 - t) * 6.0;
-            } else {
-                r = p;
-            }
-
-            if (hue * 6.0 < 1.0) {
-                g = p + (q - p) * 6.0 * hue;
-            } else if (hue * 2.0 < 1.0) {
-                g = q;
-            } else if (hue * 3.0 < 2.0) {
-                g = p + (q - p) * (0.6666666666666666 - hue) * 6.0;
-            } else {
-                g = p;
-            }
-
-            if (d11 * 6.0 < 1.0) {
-                b = p + (q - p) * 6.0 * d11;
-            } else if (d11 * 2.0 < 1.0) {
-                b = q;
-            } else if (d11 * 3.0 < 2.0) {
-                b = p + (q - p) * (0.6666666666666666 - d11) * 6.0;
-            } else {
-                b = p;
-            }
-        }
-
-        const intR: number = (r * 256.0) | 0;
-        const intG: number = (g * 256.0) | 0;
-        const intB: number = (b * 256.0) | 0;
-        return (intR << 16) + (intG << 8) + intB;
-    }
 
     drawMap(left: number, top: number, right: number, bottom: number, widthOffset: number, heightOffset: number, width: number, height: number): void {
         const visibleX: number = right - left;
@@ -926,7 +872,7 @@ export class MapView extends GameShell {
                 } else {
                     const info: number = this.overlayInfo[x + left][y + top];
                     const shape: number = info & 0xfc;
-                    if (shape == 0 || lengthX <= 1 || lengthY <= 1) {
+                    if (shape === 0 || lengthX <= 1 || lengthY <= 1) {
                         Pix2D.fillRect2d(startX, startY, lengthX, lengthY, overlay);
                     } else {
                         this.drawSmoothEdges(Pix2D.pixels, startY * Pix2D.width2d + startX, this.floormapColors[x + left][y + top], overlay, lengthX, lengthY, shape >> 2, info & 0x3);
@@ -967,16 +913,16 @@ export class MapView extends GameShell {
                 endY += heightOffset;
 
                 let wall: number = this.locWalls[x + left][y + top] & 0xff;
-                if (wall != 0) {
+                if (wall !== 0) {
                     let edgeX: number;
-                    if (lengthX == 1) {
+                    if (lengthX === 1) {
                         edgeX = startX;
                     } else {
                         edgeX = endX - 1;
                     }
 
                     let edgeY: number;
-                    if (lengthY == 1) {
+                    if (lengthY === 1) {
                         edgeY = startY;
                     } else {
                         edgeY = endY - 1;
@@ -987,45 +933,45 @@ export class MapView extends GameShell {
                         rgb = 0xcc0000;
                         wall -= 4;
                     }
-                    if (wall == 27 || wall == 28) {
+                    if (wall === 27 || wall === 28) {
                         // bugfix: drawing diagonal doors
                         rgb = 0xcc0000;
                         wall -= 2;
                     }
 
-                    if (wall == 1) {
+                    if (wall === 1) {
                         Pix2D.drawVerticalLine(startX, startY, rgb, lengthY);
-                    } else if (wall == 2) {
+                    } else if (wall === 2) {
                         Pix2D.drawHorizontalLine(startX, startY, rgb, lengthX);
-                    } else if (wall == 3) {
+                    } else if (wall === 3) {
                         Pix2D.drawVerticalLine(edgeX, startY, rgb, lengthY);
-                    } else if (wall == 4) {
+                    } else if (wall === 4) {
                         Pix2D.drawHorizontalLine(startX, edgeY, rgb, lengthX);
-                    } else if (wall == 9) {
+                    } else if (wall === 9) {
                         Pix2D.drawVerticalLine(startX, startY, 0xffffff, lengthY);
                         Pix2D.drawHorizontalLine(startX, startY, rgb, lengthX);
-                    } else if (wall == 10) {
+                    } else if (wall === 10) {
                         Pix2D.drawVerticalLine(edgeX, startY, 0xffffff, lengthY);
                         Pix2D.drawHorizontalLine(startX, startY, rgb, lengthX);
-                    } else if (wall == 11) {
+                    } else if (wall === 11) {
                         Pix2D.drawVerticalLine(edgeX, startY, 0xffffff, lengthY);
                         Pix2D.drawHorizontalLine(startX, edgeY, rgb, lengthX);
-                    } else if (wall == 12) {
+                    } else if (wall === 12) {
                         Pix2D.drawVerticalLine(startX, startY, 0xffffff, lengthY);
                         Pix2D.drawHorizontalLine(startX, edgeY, rgb, lengthX);
-                    } else if (wall == 17) {
+                    } else if (wall === 17) {
                         Pix2D.drawHorizontalLine(startX, startY, rgb, 1);
-                    } else if (wall == 18) {
+                    } else if (wall === 18) {
                         Pix2D.drawHorizontalLine(edgeX, startY, rgb, 1);
-                    } else if (wall == 19) {
+                    } else if (wall === 19) {
                         Pix2D.drawHorizontalLine(edgeX, edgeY, rgb, 1);
-                    } else if (wall == 20) {
+                    } else if (wall === 20) {
                         Pix2D.drawHorizontalLine(startX, edgeY, rgb, 1);
-                    } else if (wall == 25) {
+                    } else if (wall === 25) {
                         for (let i: number = 0; i < lengthY; i++) {
                             Pix2D.drawHorizontalLine(startX + i, edgeY - i, rgb, 1);
                         }
-                    } else if (wall == 26) {
+                    } else if (wall === 26) {
                         for (let i: number = 0; i < lengthY; i++) {
                             Pix2D.drawHorizontalLine(startX + i, startY + i, rgb, 1);
                         }
@@ -1033,12 +979,12 @@ export class MapView extends GameShell {
                 }
 
                 const mapscene: number = this.locMapscenes[x + left][y + top];
-                if (mapscene != 0) {
+                if (mapscene !== 0) {
                     this.imageMapscene[mapscene - 1].clip(startX - lengthX / 2, startY - lengthY / 2, lengthX * 2, lengthY * 2);
                 }
 
                 const mapfunction: number = this.locMapfunction[x + left][y + top];
-                if (mapfunction != 0) {
+                if (mapfunction !== 0) {
                     this.visibleMapFunctions[visibleMapFunctionCount] = mapfunction - 1;
                     this.visibleMapFunctionsX[visibleMapFunctionCount] = startX + lengthX / 2;
                     this.visibleMapFunctionsY[visibleMapFunctionCount] = startY + lengthY / 2;
@@ -1121,7 +1067,7 @@ export class MapView extends GameShell {
 
         if (this.flashTimer > 0) {
             for (let i: number = 0; i < visibleMapFunctionCount; i++) {
-                if (this.visibleMapFunctions[i] == this.currentKey) {
+                if (this.visibleMapFunctions[i] === this.currentKey) {
                     this.imageMapfunction[this.visibleMapFunctions[i]].draw(this.visibleMapFunctionsX[i] - 7, this.visibleMapFunctionsY[i] - 7);
 
                     if (this.flashTimer % 10 < 5) {
@@ -1132,7 +1078,7 @@ export class MapView extends GameShell {
             }
         }
 
-        if (this.zoom == this.targetZoom && MapView.shouldDrawLabels) {
+        if (this.zoom === this.targetZoom && MapView.shouldDrawLabels) {
             for (let i: number = 0; i < this.labelCount; i++) {
                 let x = this.labelX[i];
                 let y = this.labelY[i];
@@ -1209,7 +1155,7 @@ export class MapView extends GameShell {
                     Pix2D.drawRect(drawLeft, drawTop, drawRight - drawLeft, drawBottom - drawTop, color);
                     this.b12?.drawStringRight(drawRight - 5, drawBottom - 5, mx + '_' + mz, color, false);
 
-                    if (mx == 33 && mz >= 71 && mz <= 73) {
+                    if (mx === 33 && mz >= 71 && mz <= 73) {
                         this.b12?.drawStringCenter((drawRight + drawLeft) / 2, (drawBottom + drawTop) / 2, 'u_pass', 0xff0000);
                     } else if (mx >= 32 && mx <= 34 && mz >= 70 && mz <= 74) {
                         this.b12?.drawStringCenter((drawRight + drawLeft) / 2, (drawBottom + drawTop) / 2, 'u_pass', 0xffff00);
@@ -1219,21 +1165,21 @@ export class MapView extends GameShell {
         }
     }
 
-    drawSmoothEdges(data: Int32Array, off: number, color: number, overlay: number, width: number, height: number, shape: number, rotation: number): void {
+    drawSmoothEdges(data: Int32Array, off: number, color: number, overlay: number, width: number, height: number, shape: number, angle: number): void {
         const step: number = Pix2D.width2d - width;
-        if (shape == 9) {
-            shape = 1;
-            rotation = (rotation + 1) & 0x3;
-        } else if (shape == 10) {
-            shape = 1;
-            rotation = (rotation + 3) & 0x3;
-        } else if (shape == 11) {
-            shape = 8;
-            rotation = (rotation + 3) & 0x3;
+        if (shape === LocShape.WALL_DIAGONAL.id) {
+            shape = LocShape.WALL_DIAGONAL_CORNER.id;
+            angle = (angle + 1) & 0x3;
+        } else if (shape === LocShape.CENTREPIECE_STRAIGHT.id) {
+            shape = LocShape.WALL_DIAGONAL_CORNER.id;
+            angle = (angle + 3) & 0x3;
+        } else if (shape === LocShape.CENTREPIECE_DIAGONAL.id) {
+            shape = LocShape.WALLDECOR_DIAGONAL_BOTH.id;
+            angle = (angle + 3) & 0x3;
         }
 
-        if (shape == 1) {
-            if (rotation == 0) {
+        if (shape === LocShape.WALL_DIAGONAL_CORNER.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y) {
@@ -1244,7 +1190,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y) {
@@ -1255,7 +1201,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y) {
@@ -1266,7 +1212,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y) {
@@ -1278,8 +1224,8 @@ export class MapView extends GameShell {
                     off += step;
                 }
             }
-        } else if (shape == 2) {
-            if (rotation == 0) {
+        } else if (shape === LocShape.WALL_L.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y >> 1) {
@@ -1290,7 +1236,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y << 1) {
@@ -1301,7 +1247,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x <= y >> 1) {
@@ -1312,7 +1258,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x >= y << 1) {
@@ -1324,8 +1270,8 @@ export class MapView extends GameShell {
                     off += step;
                 }
             }
-        } else if (shape == 3) {
-            if (rotation == 0) {
+        } else if (shape === LocShape.WALL_SQUARE_CORNER.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x <= y >> 1) {
@@ -1336,7 +1282,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y << 1) {
@@ -1347,7 +1293,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y >> 1) {
@@ -1358,7 +1304,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x >= y << 1) {
@@ -1370,8 +1316,8 @@ export class MapView extends GameShell {
                     off += step;
                 }
             }
-        } else if (shape == 4) {
-            if (rotation == 0) {
+        } else if (shape === LocShape.WALLDECOR_STRAIGHT_NOOFFSET.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y >> 1) {
@@ -1382,7 +1328,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y << 1) {
@@ -1393,7 +1339,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x >= y >> 1) {
@@ -1404,54 +1350,8 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
-                    for (let x: number = width - 1; x >= 0; x--) {
-                        if (x <= y << 1) {
-                            data[off++] = overlay;
-                        } else {
-                            data[off++] = color;
-                        }
-                    }
-                    off += step;
-                }
-            }
-        } else if (shape == 5) {
-            if (rotation == 0) {
-                for (let y: number = height - 1; y >= 0; y--) {
-                    for (let x: number = width - 1; x >= 0; x--) {
-                        if (x >= y >> 1) {
-                            data[off++] = overlay;
-                        } else {
-                            data[off++] = color;
-                        }
-                    }
-                    off += step;
-                }
-            } else if (rotation == 1) {
-                for (let y: number = height - 1; y >= 0; y--) {
-                    for (let x: number = 0; x < width; x++) {
-                        if (x <= y << 1) {
-                            data[off++] = overlay;
-                        } else {
-                            data[off++] = color;
-                        }
-                    }
-                    off += step;
-                }
-            } else if (rotation == 2) {
-                for (let y: number = 0; y < height; y++) {
-                    for (let x: number = 0; x < width; x++) {
-                        if (x >= y >> 1) {
-                            data[off++] = overlay;
-                        } else {
-                            data[off++] = color;
-                        }
-                    }
-                    off += step;
-                }
-            } else if (rotation == 3) {
-                for (let y: number = 0; y < height; y++) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x <= y << 1) {
                             data[off++] = overlay;
@@ -1462,8 +1362,54 @@ export class MapView extends GameShell {
                     off += step;
                 }
             }
-        } else if (shape == 6) {
-            if (rotation == 0) {
+        } else if (shape === LocShape.WALLDECOR_STRAIGHT_OFFSET.id) {
+            if (angle === LocAngle.WEST) {
+                for (let y: number = height - 1; y >= 0; y--) {
+                    for (let x: number = width - 1; x >= 0; x--) {
+                        if (x >= y >> 1) {
+                            data[off++] = overlay;
+                        } else {
+                            data[off++] = color;
+                        }
+                    }
+                    off += step;
+                }
+            } else if (angle === LocAngle.NORTH) {
+                for (let y: number = height - 1; y >= 0; y--) {
+                    for (let x: number = 0; x < width; x++) {
+                        if (x <= y << 1) {
+                            data[off++] = overlay;
+                        } else {
+                            data[off++] = color;
+                        }
+                    }
+                    off += step;
+                }
+            } else if (angle === LocAngle.EAST) {
+                for (let y: number = 0; y < height; y++) {
+                    for (let x: number = 0; x < width; x++) {
+                        if (x >= y >> 1) {
+                            data[off++] = overlay;
+                        } else {
+                            data[off++] = color;
+                        }
+                    }
+                    off += step;
+                }
+            } else if (angle === LocAngle.SOUTH) {
+                for (let y: number = 0; y < height; y++) {
+                    for (let x: number = width - 1; x >= 0; x--) {
+                        if (x <= y << 1) {
+                            data[off++] = overlay;
+                        } else {
+                            data[off++] = color;
+                        }
+                    }
+                    off += step;
+                }
+            }
+        } else if (shape === LocShape.WALLDECOR_DIAGONAL_OFFSET.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= width / 2) {
@@ -1474,7 +1420,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (y <= height / 2) {
@@ -1485,7 +1431,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= width / 2) {
@@ -1496,7 +1442,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (y >= height / 2) {
@@ -1508,8 +1454,8 @@ export class MapView extends GameShell {
                     off += step;
                 }
             }
-        } else if (shape == 7) {
-            if (rotation == 0) {
+        } else if (shape === LocShape.WALLDECOR_DIAGONAL_NOOFFSET.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y - height / 2) {
@@ -1520,7 +1466,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x <= y - height / 2) {
@@ -1531,7 +1477,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x <= y - height / 2) {
@@ -1542,7 +1488,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x <= y - height / 2) {
@@ -1554,8 +1500,8 @@ export class MapView extends GameShell {
                     off += step;
                 }
             }
-        } else if (shape == 8) {
-            if (rotation == 0) {
+        } else if (shape === LocShape.WALLDECOR_DIAGONAL_BOTH.id) {
+            if (angle === LocAngle.WEST) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y - height / 2) {
@@ -1566,7 +1512,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 1) {
+            } else if (angle === LocAngle.NORTH) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = 0; x < width; x++) {
                         if (x >= y - height / 2) {
@@ -1577,7 +1523,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 2) {
+            } else if (angle === LocAngle.EAST) {
                 for (let y: number = height - 1; y >= 0; y--) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x >= y - height / 2) {
@@ -1588,7 +1534,7 @@ export class MapView extends GameShell {
                     }
                     off += step;
                 }
-            } else if (rotation == 3) {
+            } else if (angle === LocAngle.SOUTH) {
                 for (let y: number = 0; y < height; y++) {
                     for (let x: number = width - 1; x >= 0; x--) {
                         if (x >= y - height / 2) {

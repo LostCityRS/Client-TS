@@ -292,77 +292,72 @@ export default class Pix8 extends DoublyLinkable {
         }
     }
 
-    clip(arg0: number, arg1: number, arg2: number, arg3: number): void {
+    clip(x: number, y: number, w: number, h: number): void {
         try {
-            const local2: number = this.width2d;
-            const local5: number = this.height2d;
-            let local7: number = 0;
-            let local9: number = 0;
-            const local15: number = ((local2 << 16) / arg2) | 0;
-            const local21: number = ((local5 << 16) / arg3) | 0;
-            const local24: number = this.cropW;
-            const local27: number = this.cropH;
-            const local33: number = ((local24 << 16) / arg2) | 0;
-            const local39: number = ((local27 << 16) / arg3) | 0;
-            arg0 = (arg0 + (this.cropX * arg2 + local24 - 1) / local24) | 0;
-            arg1 = (arg1 + (this.cropY * arg3 + local27 - 1) / local27) | 0;
-            if ((this.cropX * arg2) % local24 != 0) {
-                local7 = (((local24 - ((this.cropX * arg2) % local24)) << 16) / arg2) | 0;
+            let cropX: number = 0;
+            let cropY: number = 0;
+            const cropW: number = this.cropW;
+            const cropH: number = this.cropH;
+            const offX: number = ((cropW << 16) / w) | 0;
+            const offY: number = ((cropH << 16) / h) | 0;
+            x = (x + (this.cropX * w + cropW - 1) / cropW) | 0;
+            y = (y + (this.cropY * h + cropH - 1) / cropH) | 0;
+            if ((this.cropX * w) % cropW !== 0) {
+                cropX = (((cropW - ((this.cropX * w) % cropW)) << 16) / w) | 0;
             }
-            if ((this.cropY * arg3) % local27 != 0) {
-                local9 = (((local27 - ((this.cropY * arg3) % local27)) << 16) / arg3) | 0;
+            if ((this.cropY * h) % cropH !== 0) {
+                cropY = (((cropH - ((this.cropY * h) % cropH)) << 16) / h) | 0;
             }
-            arg2 = ((arg2 * (this.width2d - (local7 >> 16))) / local24) | 0;
-            arg3 = ((arg3 * (this.height2d - (local9 >> 16))) / local27) | 0;
-            let local133: number = arg0 + arg1 * Pix2D.width2d;
-            let local137: number = Pix2D.width2d - arg2;
-            let local144: number;
-            if (arg1 < Pix2D.top) {
-                local144 = Pix2D.top - arg1;
-                arg3 -= local144;
-                arg1 = 0;
-                local133 += local144 * Pix2D.width2d;
-                local9 += local39 * local144;
+            w = ((w * (this.width2d - (cropX >> 16))) / cropW) | 0;
+            h = ((h * (this.height2d - (cropY >> 16))) / cropH) | 0;
+            let dstOff: number = x + y * Pix2D.width2d;
+            let dstStep: number = Pix2D.width2d - w;
+            if (y < Pix2D.top) {
+                const cutoff: number = Pix2D.top - y;
+                h -= cutoff;
+                y = 0;
+                dstOff += cutoff * Pix2D.width2d;
+                cropY += offY * cutoff;
             }
-            if (arg1 + arg3 > Pix2D.bottom) {
-                arg3 -= arg1 + arg3 - Pix2D.bottom;
+            if (y + h > Pix2D.bottom) {
+                h -= y + h - Pix2D.bottom;
             }
-            if (arg0 < Pix2D.left) {
-                local144 = Pix2D.left - arg0;
-                arg2 -= local144;
-                arg0 = 0;
-                local133 += local144;
-                local7 += local33 * local144;
-                local137 += local144;
+            if (x < Pix2D.left) {
+                const cutoff: number = Pix2D.left - x;
+                w -= cutoff;
+                x = 0;
+                dstOff += cutoff;
+                cropX += offX * cutoff;
+                dstStep += cutoff;
             }
-            if (arg0 + arg2 > Pix2D.right) {
-                local144 = arg0 + arg2 - Pix2D.right;
-                arg2 -= local144;
-                local137 += local144;
+            if (x + w > Pix2D.right) {
+                const cutoff: number = x + w - Pix2D.right;
+                w -= cutoff;
+                dstStep += cutoff;
             }
-            this.plot_scale(Pix2D.pixels, this.pixels, this.rgbPal, local7, local9, local133, local137, arg2, arg3, local33, local39, local2);
+            this.plot_scale(Pix2D.pixels, this.pixels, cropX, cropY, dstOff, dstStep, w, h, offX, offY);
         } catch (ignore) {
             console.log('error in sprite clipping routine');
         }
     }
 
-    private plot_scale(arg0: Int32Array, arg1: Int8Array, arg2: Int32Array, arg3: number, arg4: number, arg5: number, arg6: number, arg7: number, arg8: number, arg9: number, arg10: number, arg11: number): void {
+    private plot_scale(dst: Int32Array, src: Int8Array, cropX: number, cropY: number, dstOff: number, dstStep: number, w: number, h: number, offX: number, offY: number): void {
         try {
-            const local3: number = arg3;
-            for (let local6: number = -arg8; local6 < 0; local6++) {
-                const local14: number = (arg4 >> 16) * arg11;
-                for (let local17: number = -arg7; local17 < 0; local17++) {
-                    const local27: number = arg1[(arg3 >> 16) + local14];
-                    if (local27 == 0) {
-                        arg5++;
+            const startX: number = cropX;
+            for (let x: number = -h; x < 0; x++) {
+                const offY: number = (cropY >> 16) * this.width2d;
+                for (let y: number = -w; y < 0; y++) {
+                    const palIndex: number = src[(cropX >> 16) + offY];
+                    if (palIndex === 0) {
+                        dstOff++;
                     } else {
-                        arg0[arg5++] = arg2[local27 & 0xff];
+                        dst[dstOff++] = this.rgbPal[palIndex & 0xff];
                     }
-                    arg3 += arg9;
+                    cropX += offX;
                 }
-                arg4 += arg10;
-                arg3 = local3;
-                arg5 += arg6;
+                cropY += offY;
+                cropX = startX;
+                dstOff += dstStep;
             }
         } catch (ignore) {
             console.log('error in plot_scale');

@@ -3,21 +3,21 @@ import SeqType from '#/config/SeqType.js';
 import Linkable from '#/datastruct/Linkable.js';
 
 export default class LocEntity extends Linkable {
-    heightmapSW: number;
-    readonly heightmapSE: number;
-    readonly heightmapNE: number;
-    readonly heightmapNW: number;
+    level: number;
+    readonly layer: number;
+    readonly x: number;
+    readonly z: number;
     readonly index: number;
     readonly seq: SeqType;
     seqFrame: number;
     seqCycle: number;
 
-    constructor(index: number, heightmapSW: number, heightmapSE: number, heightmapNE: number, heightmapNW: number, seq: SeqType, randomFrame: boolean) {
+    constructor(index: number, level: number, layer: number, x: number, z: number, seq: SeqType, randomFrame: boolean) {
         super();
-        this.heightmapSW = heightmapSW;
-        this.heightmapSE = heightmapSE;
-        this.heightmapNE = heightmapNE;
-        this.heightmapNW = heightmapNW;
+        this.level = level;
+        this.layer = layer;
+        this.x = x;
+        this.z = z;
         this.index = index;
         this.seq = seq;
 
