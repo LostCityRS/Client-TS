@@ -1,4 +1,4 @@
-import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume } from '#3rdparty/deps.js';
+import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume, MobileKeyboard } from '#3rdparty/deps.js';
 
 import GameShell from '#/client/GameShell.js';
 import InputTracking from '#/client/InputTracking.js';
@@ -6536,6 +6536,9 @@ export class Client extends GameShell {
                 this.chatbackInput = '';
                 this.redrawChatback = true;
                 this.inPacketType = -1;
+                if (this.isMobile) {
+                    MobileKeyboard.show();
+                }
                 return true;
             }
 
