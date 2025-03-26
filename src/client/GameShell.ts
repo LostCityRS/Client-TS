@@ -602,7 +602,7 @@ export default abstract class GameShell {
 
         this.nx = touch.screenX | 0;
         this.ny = touch.screenY | 0;
-        if (!MobileKeyboard.isDisplayed()) {  // CUSTOM: MobileKeyboard
+        if (!MobileKeyboard.isWithinCanvasKeyboard(this.mouseX, this.mouseY)) {  // CUSTOM: MobileKeyboard
         if (this.startedInViewport && this.getViewportInterfaceId() === -1) {
             // Camera panning
             if (this.mx - this.nx > 0) {
@@ -628,7 +628,19 @@ export default abstract class GameShell {
 
     protected get isMobile(): boolean {
         const keywords: string[] = ['Android', 'webOS', 'iPhone', 'iPad', 'iPod', 'BlackBerry', 'Windows Phone'];
-        return keywords.some((keyword: string): boolean => navigator.userAgent.includes(keyword));
+        if (keywords.some((keyword: string): boolean => navigator.userAgent.includes(keyword))) {
+            return true;
+        }
+
+        // Annoyingly, iOS Safari shares UA with MacOS these days, so we have
+        // to do some feature testing.
+        if (navigator) {
+            const isiOSSafari = navigator.maxTouchPoints !== undefined && navigator.maxTouchPoints > 2 && (navigator as any).standalone !== undefined;
+            if (isiOSSafari) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private get isAndroid(): boolean {

@@ -86,8 +86,8 @@ function isFullScreen() {
 
 
 class MobileKeyboard {
-    canvasKeyboard: Keyboard;
-    nativeKeyboard: Keyboard;
+    canvasKeyboard: CanvasMobileKeyboard;
+    nativeKeyboard: NativeMobileKeyboard;
     mode: UserKeyboardMode;
     constructor() {
         this.canvasKeyboard = new CanvasMobileKeyboard();
@@ -102,7 +102,7 @@ class MobileKeyboard {
         }
     }
 
-    show(originX?: number, originY?: number) {
+    public show(originX?: number, originY?: number) {
         if (this.mode === UserKeyboardMode.Hybrid) {
             if (isFullScreen()) {
                 this.canvasKeyboard.show();
@@ -116,20 +116,24 @@ class MobileKeyboard {
         }
     }
 
-    hide() {
+    public hide() {
         this.canvasKeyboard.hide();
         this.nativeKeyboard.hide();
     }
 
-    draw() {
+    public draw() {
         this.canvasKeyboard.draw();
     }
 
-    isDisplayed(): boolean {
+    public isDisplayed(): boolean {
         return this.canvasKeyboard.isDisplayed() || this.nativeKeyboard.isDisplayed();
     }
 
-    captureMouseUp(x: number, y: number): boolean {
+    public isWithinCanvasKeyboard(x: number, y: number): boolean {
+        return this.canvasKeyboard.isDisplayed() && this.canvasKeyboard.posWithinKeyboard(x, y);
+    }
+
+    public captureMouseUp(x: number, y: number): boolean {
         if (this.canvasKeyboard.isDisplayed()) {
             return this.canvasKeyboard.captureMouseUp(x, y);
         } else if (this.nativeKeyboard.isDisplayed()) {
@@ -137,7 +141,7 @@ class MobileKeyboard {
         }
         return false;
     }
-    captureMouseDown(x: number, y: number): boolean {
+    public captureMouseDown(x: number, y: number): boolean {
         if (this.canvasKeyboard.isDisplayed()) {
             return this.canvasKeyboard.captureMouseDown(x, y);
         } else if (this.nativeKeyboard.isDisplayed()) {
@@ -145,7 +149,7 @@ class MobileKeyboard {
         }
         return false;
     }
-    notifyTouchMove(x: number, y: number): void {
+    public notifyTouchMove(x: number, y: number): void {
         if (this.canvasKeyboard.isDisplayed()) {
             this.canvasKeyboard.notifyTouchMove(x, y);
         } else if (this.nativeKeyboard.isDisplayed()) {
@@ -294,7 +298,7 @@ class CanvasMobileKeyboard implements Keyboard {
     /**
      * Show the keyboard.
      */
-    public show(_originX: number, _originY: number) {
+    public show(_originX?: number, _originY?: number) {
         this.mode = KeyboardMode.Regular;
         this.displayed = true;
     }
@@ -316,7 +320,7 @@ class CanvasMobileKeyboard implements Keyboard {
     /**
      * Determines whether given x and y are within the bounds of the keyboard.
      */
-    private posWithinKeyboard(x: number, y: number): boolean {
+    public posWithinKeyboard(x: number, y: number): boolean {
         const withinX = x >= this.startX && x < (this.startX + this.width);
         const withinY = y >= this.startY && y < (this.startY + this.height);
         return withinX && withinY;
