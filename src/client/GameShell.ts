@@ -444,7 +444,8 @@ export default abstract class GameShell {
         }
         // CUSTOM: Mobile Keyboard
         if (this.isMobile) {
-            if (this.insideMobileInputArea() && !MobileKeyboard.isDisplayed()) {
+            const insideMobileInputArea = this.insideMobileInputArea();
+            if (insideMobileInputArea && !MobileKeyboard.isDisplayed()) {
                 // Show Keyboard if user presses input field
                 MobileKeyboard.show(this.mouseX, this.mouseY);
             } else if (MobileKeyboard.isDisplayed()) {

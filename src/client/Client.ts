@@ -10530,5 +10530,9 @@ export class Client extends GameShell {
         }
 
         this.imageTitle1?.draw(661, 0);
+
+        if (this.isMobile) {
+            MobileKeyboard.draw();
+        }
     }
 }
