@@ -394,9 +394,11 @@ export default abstract class GameShell {
         this.mouseClickY = this.mouseY;
 
         if (this.isMobile && !this.isCapacitor) {
-            if (this.insideMobileInputArea() && !this.insideChatPopupArea()) {
-                this.mouseClickButton = 1;
-                this.mouseButton = 1;
+            if (this.insideMobileInputArea() && !this.insideUsernameArea() && !this.inPasswordArea()) {
+                // Negate the mousedown event - it's inside mobile input area
+                // It will be handled by mouseup.
+                this.mouseClickButton = 0;
+                this.mouseButton = 0;
                 return;
             }
 
@@ -444,7 +446,7 @@ export default abstract class GameShell {
         if (this.isMobile) {
             if (this.insideMobileInputArea() && !MobileKeyboard.isDisplayed()) {
                 // Show Keyboard if user presses input field
-                MobileKeyboard.show();
+                MobileKeyboard.show(this.mouseX, this.mouseY);
             } else if (MobileKeyboard.isDisplayed()) {
                 if (!MobileKeyboard.captureMouseUp(this.mouseX, this.mouseY)) {
                     // Hide Keyboard on mouse up outside of bounds
