@@ -240,8 +240,9 @@ export default abstract class GameShell {
         const y: number = height / 2 - 18;
 
         // draw full progress bar
+        canvas2d.strokeStyle = 'rgb(140, 17, 17)';
+        canvas2d.strokeRect(((width / 2) | 0) - 152, y, 304, 34);
         canvas2d.fillStyle = 'rgb(140, 17, 17)';
-        canvas2d.rect(((width / 2) | 0) - 152, y, 304, 34);
         canvas2d.fillRect(((width / 2) | 0) - 150, y + 2, progress * 3, 30);
 
         // cover up progress bar
