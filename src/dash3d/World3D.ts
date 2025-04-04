@@ -21,6 +21,8 @@ import Pix3D from '#/graphics/Pix3D.js';
 import Model, { VertexNormal } from '#/graphics/Model.js';
 
 import { Int32Array3d, TypedArray1d, TypedArray2d, TypedArray3d, TypedArray4d } from '#/util/Arrays.js';
+import { RendererWebGLC } from '#/graphics/renderer/webgl/RendererWebGLC.ts';
+import { Renderer } from '#/graphics/renderer/Renderer.ts';
 import { LocSpans } from '#/dash3d/LocSpans.ts';
 import { TypecodeEntity } from '#/dash3d/TypecodeEntity.ts';
 import { OccludeType } from '#/dash3d/OccludeType.ts';
@@ -38,8 +40,8 @@ export default class World3D {
 
     private static viewportLeft: number = 0;
     private static viewportTop: number = 0;
-    private static viewportRight: number = 0;
-    private static viewportBottom: number = 0;
+    static viewportRight: number = 0;
+    static viewportBottom: number = 0;
     private static viewportCenterX: number = 0;
     private static viewportCenterY: number = 0;
 
@@ -48,9 +50,9 @@ export default class World3D {
     private static sinEyeYaw: number = 0;
     private static cosEyeYaw: number = 0;
 
-    private static eyeX: number = 0;
-    private static eyeY: number = 0;
-    private static eyeZ: number = 0;
+    static eyeX: number = 0;
+    static eyeY: number = 0;
+    static eyeZ: number = 0;
     private static eyeTileX: number = 0;
     private static eyeTileZ: number = 0;
 
@@ -254,11 +256,11 @@ export default class World3D {
     }
 
     // ----
-    private readonly maxLevel: number;
-    private readonly maxTileX: number;
-    private readonly maxTileZ: number;
-    private readonly levelHeightmaps: Int32Array[][];
-    private readonly levelTiles: (Ground | null)[][][];
+    readonly maxLevel: number;
+    readonly maxTileX: number;
+    readonly maxTileZ: number;
+    readonly levelHeightmaps: Int32Array[][];
+    readonly levelTiles: (Ground | null)[][][];
     private readonly temporaryLocs: (Location | null)[];
     private readonly levelTileOcclusionCycles: Int32Array[][];
     private readonly mergeIndexA: Int32Array;
@@ -305,6 +307,7 @@ export default class World3D {
 
         this.temporaryLocCount = 0;
         World3D.locBuffer.fill(null);
+        RendererWebGLC.onSceneReset(this);
     }
 
     setMinLevel(level: number): void {
@@ -1024,6 +1027,9 @@ export default class World3D {
     }
 
     draw(eyeX: number, eyeY: number, eyeZ: number, topLevel: number, eyeYaw: number, eyePitch: number, loopCycle: number): void {
+        RendererWebGLC.cameraYaw = eyeYaw;
+        RendererWebGLC.cameraPitch = eyePitch;
+
         if (eyeX < 0) {
             eyeX = 0;
         } else if (eyeX >= this.maxTileX * 128) {
@@ -1975,6 +1981,8 @@ export default class World3D {
     }
 
     private drawTileUnderlay(underlay: TileUnderlay, level: number, tileX: number, tileZ: number, sinEyePitch: number, cosEyePitch: number, sinEyeYaw: number, cosEyeYaw: number): void {
+        const rendererEnabled: boolean = Renderer.drawTileUnderlay(this, underlay, level, tileX, tileZ);
+
         let x3: number;
         let x0: number = (x3 = (tileX << 7) - World3D.eyeX);
         let z1: number;
@@ -2054,36 +2062,44 @@ export default class World3D {
                 World3D.clickTileX = tileX;
                 World3D.clickTileZ = tileZ;
             }
-            if (underlay.textureId === -1) {
-                if (underlay.northeastColor !== 12345678) {
-                    Pix3D.fillGouraudTriangle(py1, px3, pz0, pz1, py3, px1, underlay.northeastColor, underlay.northwestColor, underlay.southeastColor);
+
+            if (!rendererEnabled) {
+                if (underlay.textureId === -1) {
+                    if (underlay.northeastColor !== 12345678) {
+                        Pix3D.fillGouraudTriangle(py1, px3, pz0, pz1, py3, px1, underlay.northeastColor, underlay.northwestColor, underlay.southeastColor);
+                    }
+                } else if (World3D.lowMemory) {
+                    const averageColor: number = World3D.TEXTURE_HSL[underlay.textureId];
+                    Pix3D.fillGouraudTriangle(py1, px3, pz0, pz1, py3, px1, this.mulLightness(averageColor, underlay.northeastColor), this.mulLightness(averageColor, underlay.northwestColor), this.mulLightness(averageColor, underlay.southeastColor));
+                } else if (underlay.flat) {
+                    Pix3D.fillTexturedTriangle(py1, px3, pz0, pz1, py3, px1, underlay.northeastColor, underlay.northwestColor, underlay.southeastColor, x0, y0, z0, x1, x3, y1, y3, z1, z3, underlay.textureId);
+                } else {
+                    Pix3D.fillTexturedTriangle(py1, px3, pz0, pz1, py3, px1, underlay.northeastColor, underlay.northwestColor, underlay.southeastColor, x2, y2, z2, x3, x1, y3, y1, z3, z1, underlay.textureId);
                 }
-            } else if (World3D.lowMemory) {
-                const averageColor: number = World3D.TEXTURE_HSL[underlay.textureId];
-                Pix3D.fillGouraudTriangle(py1, px3, pz0, pz1, py3, px1, this.mulLightness(averageColor, underlay.northeastColor), this.mulLightness(averageColor, underlay.northwestColor), this.mulLightness(averageColor, underlay.southeastColor));
-            } else if (underlay.flat) {
-                Pix3D.fillTexturedTriangle(py1, px3, pz0, pz1, py3, px1, underlay.northeastColor, underlay.northwestColor, underlay.southeastColor, x0, y0, z0, x1, x3, y1, y3, z1, z3, underlay.textureId);
-            } else {
-                Pix3D.fillTexturedTriangle(py1, px3, pz0, pz1, py3, px1, underlay.northeastColor, underlay.northwestColor, underlay.southeastColor, x2, y2, z2, x3, x1, y3, y1, z3, z1, underlay.textureId);
             }
         }
+
         if ((px0 - pz0) * (py3 - px1) - (py0 - px1) * (px3 - pz0) <= 0) {
             return;
         }
+
         Pix3D.clipX = px0 < 0 || pz0 < 0 || px3 < 0 || px0 > Pix2D.boundX || pz0 > Pix2D.boundX || px3 > Pix2D.boundX;
         if (World3D.takingInput && this.pointInsideTriangle(World3D.mouseX, World3D.mouseY, py0, px1, py3, px0, pz0, px3)) {
             World3D.clickTileX = tileX;
             World3D.clickTileZ = tileZ;
         }
-        if (underlay.textureId !== -1) {
-            if (!World3D.lowMemory) {
-                Pix3D.fillTexturedTriangle(px0, pz0, px3, py0, px1, py3, underlay.southwestColor, underlay.southeastColor, underlay.northwestColor, x0, y0, z0, x1, x3, y1, y3, z1, z3, underlay.textureId);
-                return;
+
+        if (!rendererEnabled) {
+            if (underlay.textureId !== -1) {
+                if (!World3D.lowMemory) {
+                    Pix3D.fillTexturedTriangle(px0, pz0, px3, py0, px1, py3, underlay.southwestColor, underlay.southeastColor, underlay.northwestColor, x0, y0, z0, x1, x3, y1, y3, z1, z3, underlay.textureId);
+                    return;
+                }
+                const averageColor: number = World3D.TEXTURE_HSL[underlay.textureId];
+                Pix3D.fillGouraudTriangle(px0, pz0, px3, py0, px1, py3, this.mulLightness(averageColor, underlay.southwestColor), this.mulLightness(averageColor, underlay.southeastColor), this.mulLightness(averageColor, underlay.northwestColor));
+            } else if (underlay.southwestColor !== 12345678) {
+                Pix3D.fillGouraudTriangle(px0, pz0, px3, py0, px1, py3, underlay.southwestColor, underlay.southeastColor, underlay.northwestColor);
             }
-            const averageColor: number = World3D.TEXTURE_HSL[underlay.textureId];
-            Pix3D.fillGouraudTriangle(px0, pz0, px3, py0, px1, py3, this.mulLightness(averageColor, underlay.southwestColor), this.mulLightness(averageColor, underlay.southeastColor), this.mulLightness(averageColor, underlay.northwestColor));
-        } else if (underlay.southwestColor !== 12345678) {
-            Pix3D.fillGouraudTriangle(px0, pz0, px3, py0, px1, py3, underlay.southwestColor, underlay.southeastColor, underlay.northwestColor);
         }
     }
 
@@ -2116,6 +2132,7 @@ export default class World3D {
             TileOverlay.tmpScreenY[i] = Pix3D.centerY + (((y << 9) / z) | 0);
         }
 
+        const rendererEnabled: boolean = Renderer.drawTileOverlay(this, overlay, tileX, tileZ);
         Pix3D.alpha = 0;
 
         vertexCount = overlay.triangleVertexA.length;
@@ -2137,6 +2154,11 @@ export default class World3D {
                     World3D.clickTileX = tileX;
                     World3D.clickTileZ = tileZ;
                 }
+
+                if (rendererEnabled) {
+                    continue;
+                }
+
                 if (!overlay.triangleTextureIds || overlay.triangleTextureIds[v] === -1) {
                     if (overlay.triangleColorA[v] !== 12345678) {
                         Pix3D.fillGouraudTriangle(x0, x1, x2, y0, y1, y2, overlay.triangleColorA[v], overlay.triangleColorB[v], overlay.triangleColorC[v]);

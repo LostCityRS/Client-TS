@@ -1,4 +1,7 @@
-import { canvas, canvas2d } from "#/graphics/Canvas";
+import { canvasOverlay, canvas2d } from "#/graphics/Canvas";
+
+// ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"£$%^&*()-_=+[{]};:\'@#~,<.>/?\\| 
+// ^ Allowed characters in client
 
 const KEYMAP_REGULAR = [
     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',  // 10 chars
@@ -15,10 +18,17 @@ const KEYMAP_SHIFT = [
 ];
 
 const KEYMAP_SYMBOLS = [
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  // 10 chars
-    '!', '"', '$', '%', '^', '&', '*', '(', ')',  // 9 chars
-    '-', '+', '=', '<', '>', '~', ';', ':', 'Del',  // 9 chars
-    'abc', '/', ' ', '?', 'Enter'
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',  // 10 chars
+    '!', '"', '$', '%', '_', '&', '*', '(', ')',  // 9 chars
+    '1/2', '@', '=', '<', '>', '~', ';', ':', 'Del',  // 9 chars
+    'abc', '#', ' ', '?', 'Enter'
+];
+
+const KEYMAP_SYMBOLS_EXTRA = [
+    '£', '^',  '[', ']', '{', '}', '\'', '-', '+', '/',
+    '\\', '|', '', '', '', '', '', '', '',
+    '2/2', '', '', '', '', '', '', '', 'Del',
+    'abc', '', ' ', '', 'Enter'
 ];
 
 // Offset for addressing individual rows; four rows total.
@@ -49,13 +59,112 @@ interface KeyBox {
 enum KeyboardMode {
     Regular,
     Shift,
-    Symbols
+    Symbols,
+    SymbolsExtra,
 };
+
+enum UserKeyboardMode {
+    Hybrid,
+    Native,
+    Canvas
+};
+
+interface Keyboard {
+    draw(): void;
+    show(originX?: number, originY?: number): void;
+    hide(): void;
+    isDisplayed(): boolean;
+    captureMouseUp(x: number, y: number): boolean;
+    captureMouseDown(x: number, y: number): boolean;
+    notifyTouchMove(x: number, y: number): void;
+}
+
+
+function isFullScreen() {
+    return document.fullscreenElement !== null;
+}
+
+
+class MobileKeyboard {
+    canvasKeyboard: CanvasMobileKeyboard;
+    nativeKeyboard: NativeMobileKeyboard;
+    mode: UserKeyboardMode;
+    constructor() {
+        this.canvasKeyboard = new CanvasMobileKeyboard();
+        this.nativeKeyboard = new NativeMobileKeyboard();
+        const savedMode = localStorage.getItem('mobileKeyboardMode');
+        if (savedMode === 'native') {
+            this.mode = UserKeyboardMode.Native;
+        } else if (savedMode === 'canvas') {
+            this.mode = UserKeyboardMode.Canvas;
+        } else {
+            this.mode = UserKeyboardMode.Hybrid;
+        }
+    }
+
+    public show(originX?: number, originY?: number) {
+        if (this.mode === UserKeyboardMode.Hybrid) {
+            if (isFullScreen()) {
+                this.canvasKeyboard.show();
+            } else {
+                this.nativeKeyboard.show();
+            }
+        } else if (this.mode === UserKeyboardMode.Canvas) {
+            this.canvasKeyboard.show(originX, originY);
+        } else if (this.mode === UserKeyboardMode.Native) {
+            this.nativeKeyboard.show(originX, originY);
+        }
+    }
+
+    public hide() {
+        this.canvasKeyboard.hide();
+        this.nativeKeyboard.hide();
+    }
+
+    public draw() {
+        this.canvasKeyboard.draw();
+    }
+
+    public isDisplayed(): boolean {
+        return this.canvasKeyboard.isDisplayed() || this.nativeKeyboard.isDisplayed();
+    }
+
+    public isWithinCanvasKeyboard(x: number, y: number): boolean {
+        return this.canvasKeyboard.isDisplayed() && this.canvasKeyboard.posWithinKeyboard(x, y);
+    }
+
+    public captureMouseUp(x: number, y: number): boolean {
+        if (this.canvasKeyboard.isDisplayed()) {
+            return this.canvasKeyboard.captureMouseUp(x, y);
+        } else if (this.nativeKeyboard.isDisplayed()) {
+            return this.nativeKeyboard.captureMouseUp(x, y);
+        }
+        return false;
+    }
+    public captureMouseDown(x: number, y: number): boolean {
+        if (this.canvasKeyboard.isDisplayed()) {
+            return this.canvasKeyboard.captureMouseDown(x, y);
+        } else if (this.nativeKeyboard.isDisplayed()) {
+            return this.nativeKeyboard.captureMouseDown(x, y);
+        }
+        return false;
+    }
+    public notifyTouchMove(x: number, y: number): void {
+        if (this.canvasKeyboard.isDisplayed()) {
+            this.canvasKeyboard.notifyTouchMove(x, y);
+        } else if (this.nativeKeyboard.isDisplayed()) {
+            this.nativeKeyboard.notifyTouchMove(x, y);
+        }
+    }
+}
+
+
+
 
 /**
  * QWERTY-based OSK module.
  */
-class MobileKeyboard {
+class CanvasMobileKeyboard implements Keyboard {
     private displayed: boolean = false;
     private height: number = (HEIGHT_PER_KEYBOX * 4) + 10;
     private width: number = (WIDTH_PER_KEYBOX * 10 + 10);
@@ -80,7 +189,7 @@ class MobileKeyboard {
             }
         }
         const char = this.getCharForIndex(index);
-        if (char.length > 1) {
+        if (char !== undefined && char.length > 1) {
             // Special keys have more than one character, so shade darker.
             return '#a9afba';
         }
@@ -123,6 +232,8 @@ class MobileKeyboard {
             return KEYMAP_SHIFT[index];
         } else if (this.mode === KeyboardMode.Symbols) {
             return KEYMAP_SYMBOLS[index];
+        } else if (this.mode === KeyboardMode.SymbolsExtra) {
+            return KEYMAP_SYMBOLS_EXTRA[index];
         }
         return KEYMAP_REGULAR[index];
     }
@@ -187,7 +298,8 @@ class MobileKeyboard {
     /**
      * Show the keyboard.
      */
-    public show() {
+    public show(_originX?: number, _originY?: number) {
+        this.mode = KeyboardMode.Regular;
         this.displayed = true;
     }
 
@@ -208,7 +320,7 @@ class MobileKeyboard {
     /**
      * Determines whether given x and y are within the bounds of the keyboard.
      */
-    private posWithinKeyboard(x: number, y: number): boolean {
+    public posWithinKeyboard(x: number, y: number): boolean {
         const withinX = x >= this.startX && x < (this.startX + this.width);
         const withinY = y >= this.startY && y < (this.startY + this.height);
         return withinX && withinY;
@@ -301,8 +413,11 @@ class MobileKeyboard {
                     this.mode = KeyboardMode.Regular;
                 }
                 return true;
-            } else if (char === '123') {
+            } else if (char === '123' || char === '2/2') {
                 this.mode = KeyboardMode.Symbols;
+                return true;
+            } else if (char === '1/2') {
+                this.mode = KeyboardMode.SymbolsExtra;
                 return true;
             } else if (char === 'abc') {
                 this.mode = KeyboardMode.Regular;
@@ -320,8 +435,8 @@ class MobileKeyboard {
                 key: char,
                 code: char,
             })
-            canvas.dispatchEvent(downEvent);
-            canvas.dispatchEvent(upEvent);
+            canvasOverlay.dispatchEvent(downEvent);
+            canvasOverlay.dispatchEvent(upEvent);
             if (!this.animateBoxTimeout) {
                 if (index >= 30 && index <= 35) {
                     this.animateBoxIndex = 30;
@@ -377,9 +492,103 @@ class MobileKeyboard {
             this.startX = newStartX;
             this.startY = newStartY;
             // Focus event forces a re-draw of canvas
-            canvas.dispatchEvent(new FocusEvent('focus'));
+            canvasOverlay.dispatchEvent(new FocusEvent('focus'));
         }
     }
+}
+
+class NativeMobileKeyboard implements Keyboard {
+    virtualInputElement: HTMLInputElement;
+    private displayed: boolean = false;
+    private isAndroid: boolean = false;
+    constructor() {
+        // android device detection
+        this.isAndroid = navigator.userAgent.includes('Android');
+        // Create the virtual input field
+        this.virtualInputElement = document.createElement('input');
+        this.virtualInputElement.setAttribute('type', 'password');
+        this.virtualInputElement.setAttribute('autofocus', 'autofocus');
+        this.virtualInputElement.setAttribute('spellcheck', 'false');
+        this.virtualInputElement.setAttribute('autocomplete', 'off');
+        this.virtualInputElement.setAttribute('style', `position: fixed; top: 0px; left: 0px; width: 1px; height: 1px; opacity: 0; z-index: 20;`);
+        if (this.isAndroid) {
+            // Android uses `input` event for text entry rathern than `keydown` / `keyup`
+
+            this.virtualInputElement.addEventListener('input', (ev: Event) => {
+                if (!(ev instanceof InputEvent)) {
+                    return;
+                }
+                const data: string | null = ev.data;
+
+                if (data === null) {
+                    return;
+                }
+
+                if (ev.inputType !== 'insertText') {
+                    return;
+                }
+
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keydown', { key: data, code: data }));
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keyup', { key: data, code: data }));
+            });
+
+            this.virtualInputElement.addEventListener('keydown', (ev: KeyboardEvent) => {
+                if (ev.key === 'Enter' || ev.key === 'Backspace') {
+                    canvasOverlay.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.key }));
+                }
+            });
+            this.virtualInputElement.addEventListener('keyup', (ev: KeyboardEvent) => {
+                if (ev.key === 'Enter' || ev.key === 'Backspace') {
+                    canvasOverlay.dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.key }));
+                }
+            });
+        } else {
+            // Non-android can use `keydown` / `keyup` directly
+            this.virtualInputElement.addEventListener('keydown', (ev: KeyboardEvent) => {
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.key }));
+            });
+            this.virtualInputElement.addEventListener('keyup', (ev: KeyboardEvent) => {
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.key }));
+            });
+        }
+        document.body.appendChild(this.virtualInputElement);
+    }
+    draw(): void {
+        // Native keyboard, nothing to draw
+    }
+    show(originX?: number, originY?: number): void {
+        // Focus and click the virtual input field
+        if (originX && originY) {
+            this.virtualInputElement.style.left = `${originX}px`;
+            this.virtualInputElement.style.top = `${originY}px`;
+        }
+        canvasOverlay.blur();
+        this.virtualInputElement.focus();
+        this.virtualInputElement.click();
+        this.displayed = true;
+    }
+    hide(): void {
+        // Blur the virtual input field
+        this.virtualInputElement.blur();
+        canvasOverlay.focus();
+        this.displayed = false;
+    }
+    isDisplayed(): boolean {
+        return this.displayed;
+    }
+    captureMouseUp(_x: number, _y: number): boolean {
+        // We don't capture mouse events as the keyboard is Native so doesn't bubble
+        return false;
+    }
+    captureMouseDown(_x: number, _y: number): boolean {
+        // We don't capture mouse events as the keyboard is Native so doesn't bubble
+        return false;
+    }
+    notifyTouchMove(_x: number, _y: number) {
+        // We don't capture touch movement as we don't move the native keyboard
+        return;
+    }
+
 }
 
 export default new MobileKeyboard();

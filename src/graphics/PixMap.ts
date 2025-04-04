@@ -1,10 +1,11 @@
 import { canvas2d } from '#/graphics/Canvas.js';
 import Pix2D from '#/graphics/Pix2D.js';
+import { Renderer } from '#/graphics/renderer/Renderer.ts';
 
 export default class PixMap {
     private readonly image: ImageData;
-    private readonly width2d: number;
-    private readonly height2d: number;
+    readonly width2d: number;
+    readonly height2d: number;
     private readonly ctx: CanvasRenderingContext2D;
     private readonly paint: Uint32Array;
     readonly pixels: Int32Array;
@@ -28,6 +29,9 @@ export default class PixMap {
     }
 
     draw(x: number, y: number): void {
+        if (Renderer.renderPixMap(this, x, y)) {
+            return;
+        }
         this.#setPixels();
         this.ctx.putImageData(this.image, x, y);
     }

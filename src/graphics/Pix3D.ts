@@ -1,5 +1,6 @@
 import Pix2D from '#/graphics/Pix2D.js';
 import Pix8 from '#/graphics/Pix8.js';
+import { Renderer } from '#/graphics/renderer/Renderer.ts';
 
 import Jagfile from '#/io/Jagfile.js';
 import { Int32Array2d, TypedArray1d } from '#/util/Arrays.js';
@@ -33,7 +34,7 @@ export default class Pix3D extends Pix2D {
     static texPal: (Int32Array | null)[] = new TypedArray1d(50, null);
 
     private static opaque: boolean = false;
-    private static textureTranslucent: boolean[] = new TypedArray1d(50, false);
+    static textureTranslucent: boolean[] = new TypedArray1d(50, false);
     private static averageTextureRGB: Int32Array = new Int32Array(50);
 
     static {
@@ -215,6 +216,8 @@ export default class Pix3D extends Pix2D {
         for (let id: number = 0; id < 50; id++) {
             this.pushTexture(id);
         }
+
+        Renderer.setBrightness(randomBrightness);
     }
 
     private static setGamma(rgb: number, gamma: number): number {
@@ -244,6 +247,10 @@ export default class Pix3D extends Pix2D {
     }
 
     static fillGouraudTriangle(xA: number, xB: number, xC: number, yA: number, yB: number, yC: number, colorA: number, colorB: number, colorC: number): void {
+        if (Renderer.fillGouraudTriangle(xA, xB, xC, yA, yB, yC, colorA, colorB, colorC)) {
+            return;
+        }
+
         let xStepAB: number = 0;
         let colorStepAB: number = 0;
         if (yB !== yA) {
@@ -867,6 +874,10 @@ export default class Pix3D extends Pix2D {
     }
 
     static fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): void {
+        if (Renderer.fillTriangle(x0, x1, x2, y0, y1, y2, color)) {
+            return;
+        }
+
         let xStepAB: number = 0;
         if (y1 !== y0) {
             xStepAB = (((x1 - x0) << 16) / (y1 - y0)) | 0;
@@ -1309,6 +1320,10 @@ export default class Pix3D extends Pix2D {
         tzC: number,
         texture: number
     ): void {
+        if (Renderer.fillTexturedTriangle(xA, xB, xC, yA, yB, yC, shadeA, shadeB, shadeC, originX, originY, originZ, txB, txC, tyB, tyC, tzB, tzC, texture)) {
+            return;
+        }
+
         const texels: Int32Array | null = this.getTexels(texture);
         this.opaque = !this.textureTranslucent[texture];
 
@@ -2507,9 +2522,11 @@ export default class Pix3D extends Pix2D {
             this.texelPool[this.poolSize++] = this.activeTexels[id];
             this.activeTexels[id] = null;
         }
+
+        Renderer.updateTexture(id);
     }
 
-    private static getTexels(id: number): Int32Array | null {
+    static getTexels(id: number): Int32Array | null {
         this.textureCycle[id] = this.cycle++;
         if (this.activeTexels[id]) {
             return this.activeTexels[id];

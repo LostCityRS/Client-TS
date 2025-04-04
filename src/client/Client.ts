@@ -1,4 +1,4 @@
-import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume } from '#3rdparty/deps.js';
+import { playWave, setWaveVolume, BZip2, playMidi, stopMidi, setMidiVolume, MobileKeyboard } from '#3rdparty/deps.js';
 
 import GameShell from '#/client/GameShell.js';
 import InputTracking from '#/client/InputTracking.js';
@@ -43,7 +43,7 @@ import { downloadUrl, sleep, arraycopy } from '#/util/JsUtil.js';
 
 import AnimBase from '#/graphics/AnimBase.js';
 import AnimFrame from '#/graphics/AnimFrame.js';
-import { canvas2d } from '#/graphics/Canvas.js';
+import { canvas2d, canvasContainer } from '#/graphics/Canvas.js';
 import { Colors } from '#/graphics/Colors.js';
 import Pix2D from '#/graphics/Pix2D.js';
 import Pix3D from '#/graphics/Pix3D.js';
@@ -52,6 +52,10 @@ import Pix8 from '#/graphics/Pix8.js';
 import Pix24 from '#/graphics/Pix24.js';
 import PixFont from '#/graphics/PixFont.js';
 import PixMap from '#/graphics/PixMap.js';
+
+import { Renderer } from '#/graphics/renderer/Renderer.js';
+import { RendererWebGPU } from '#/graphics/renderer/webgpu/RendererWebGPU.js';
+import { RendererWebGL } from '#/graphics/renderer/webgl/RendererWebGL.js';
 
 import ClientStream from '#/io/ClientStream.js';
 import { ClientProt } from '#/io/ClientProt.js';
@@ -65,6 +69,7 @@ import WordFilter from '#/wordenc/WordFilter.js';
 import WordPack from '#/wordenc/WordPack.js';
 
 import Wave from '#/sound/Wave.js';
+import { RendererWebGLC } from '#/graphics/renderer/webgl/RendererWebGLC.ts';
 import { PacketType } from '#/io/PacketType.ts';
 import { TypecodeEntity } from '#/dash3d/TypecodeEntity.ts';
 import { TileFlag } from '#/dash3d/TileFlag.ts';
@@ -155,8 +160,8 @@ export class Client extends GameShell {
     private fontQuill8: PixFont | null = null;
 
     // login screen pillar flames properties
+    private flameNext: number = 0;
     private imageRunes: Pix8[] = [];
-    private flameActive: boolean = false;
     private imageFlamesLeft: Pix24 | null = null;
     private imageFlamesRight: Pix24 | null = null;
     private flameBuffer1: Int32Array | null = null;
@@ -171,7 +176,6 @@ export class Client extends GameShell {
     private flameCycle0: number = 0;
     private flameGradientCycle0: number = 0;
     private flameGradientCycle1: number = 0;
-    private flamesInterval: Timer | null = null;
 
     // game world properties
     private areaSidebar: PixMap | null = null;
@@ -490,8 +494,6 @@ export class Client extends GameShell {
     private midiSize: number = 0;
     private midiVolume: number = 64;
 
-    private displayFps: boolean = false;
-
     static setHighMemory(): void {
         World3D.lowMemory = false;
         Pix3D.lowMemory = false;
@@ -560,11 +562,6 @@ export class Client extends GameShell {
     // ----
 
     private unloadTitle(): void {
-        this.flameActive = false;
-        if (this.flamesInterval) {
-            clearInterval(this.flamesInterval);
-            this.flamesInterval = null;
-        }
         this.imageTitlebox = null;
         this.imageTitlebutton = null;
         this.imageRunes = [];
@@ -647,14 +644,13 @@ export class Client extends GameShell {
     }
 
     private drawError(): void {
+        Renderer.resetRenderer();
         canvas2d.fillStyle = 'black';
         canvas2d.fillRect(0, 0, this.width, this.height);
 
-        this.setFramerate(1);
+        this.setUpdateRate(1);
 
-        this.flameActive = false;
         let y: number = 35;
-
         if (this.errorLoading) {
             canvas2d.font = 'bold 16px helvetica, sans-serif';
             canvas2d.textAlign = 'left';
@@ -1418,11 +1414,6 @@ export class Client extends GameShell {
     }
 
     async load() {
-        if (this.isMobile && Client.lowMemory) {
-            // force mobile on low detail mode to 30 fps
-            this.setTargetedFramerate(30);
-        }
-
         if (this.alreadyStarted) {
             this.errorStarted = true;
             return;
@@ -1689,17 +1680,37 @@ export class Client extends GameShell {
                 this.errorMessage = err.message;
             }
         }
+
+        // todo: enable GPU support automatically when we're ready
+        // try {
+        //     if (RendererWebGPU.hasWebGPUSupport()) {
+        //         Renderer.renderer = await RendererWebGPU.init(canvasContainer, this.width, this.height);
+        //     }
+        //     if (!Renderer.renderer) {
+        //         Renderer.renderer = RendererWebGLC.init(canvasContainer, this.width, this.height);
+        //     }
+        // } catch (err) {
+        //     console.error(err);
+        // }
     }
 
-    async update() {
+    async update(now: number) {
         if (this.errorStarted || this.errorLoading || this.errorHost) {
             return;
         }
+
         this.loopCycle++;
+
         if (this.ingame) {
             await this.updateGame();
         } else {
             await this.updateTitleScreen();
+
+            if (now >= this.flameNext) {
+                this.updateFlames();
+                this.updateFlames();
+                this.flameNext = now + 35;
+            }
         }
     }
 
@@ -1709,11 +1720,14 @@ export class Client extends GameShell {
             return;
         }
 
+        Renderer.startFrame();
         if (this.ingame) {
             this.drawGame();
         } else {
             await this.drawTitleScreen();
+            this.drawFlames();
         }
+        Renderer.endFrame();
 
         this.dragCycles = 0;
     }
@@ -1750,10 +1764,8 @@ export class Client extends GameShell {
 
         if (this.redrawTitleBackground) {
             this.redrawTitleBackground = false;
-            if (!this.flameActive) {
-                this.imageTitle0?.draw(0, 0);
-                this.imageTitle1?.draw(661, 0);
-            }
+            this.imageTitle0?.draw(0, 0);
+            this.imageTitle1?.draw(661, 0);
             this.imageTitle2?.draw(128, 0);
             this.imageTitle3?.draw(214, 386);
             this.imageTitle5?.draw(0, 265);
@@ -1762,16 +1774,10 @@ export class Client extends GameShell {
             this.imageTitle8?.draw(574, 186);
         }
 
-        await sleep(5); // return a slice of time to the main loop so it can update the progress bar
-    }
-
-    runFlames(): void {
-        if (!this.flameActive) {
-            return;
-        }
         this.updateFlames();
         this.updateFlames();
         this.drawFlames();
+        await sleep(0); // return a slice of time to the main loop so it can update the progress bar
     }
 
     private async loadTitle(): Promise<void> {
@@ -1997,12 +2003,7 @@ export class Client extends GameShell {
         this.flameBuffer3 = new Int32Array(32768);
         this.flameBuffer2 = new Int32Array(32768);
 
-        this.showProgress(10, 'Connecting to fileserver').then((): void => {
-            if (!this.flameActive) {
-                this.flameActive = true;
-                this.flamesInterval = setInterval(this.runFlames.bind(this), 35);
-            }
-        });
+        this.showProgress(10, 'Connecting to fileserver');
     }
 
     private async updateTitleScreen(): Promise<void> {
@@ -2261,7 +2262,7 @@ export class Client extends GameShell {
                 this.hintType = 0;
                 this.menuSize = 0;
                 this.menuVisible = false;
-                this.idleCycles = Date.now();
+                this.idleCycles = performance.now();
 
                 for (let i: number = 0; i < 100; i++) {
                     this.messageText[i] = null;
@@ -2463,9 +2464,9 @@ export class Client extends GameShell {
                             throw new Error();
                         }
 
-                        if (Date.now() + ((buf.pos / 22) | 0) > this.lastWaveStartTime + ((this.lastWaveLength / 22) | 0)) {
+                        if (performance.now() + ((buf.pos / 22) | 0) > this.lastWaveStartTime + ((this.lastWaveLength / 22) | 0)) {
                             this.lastWaveLength = buf.pos;
-                            this.lastWaveStartTime = Date.now();
+                            this.lastWaveStartTime = performance.now();
                             this.lastWaveId = this.waveIds[wave];
                             this.lastWaveLoops = this.waveLoops[wave];
                             await playWave(buf.data.slice(0, buf.pos));
@@ -2655,11 +2656,11 @@ export class Client extends GameShell {
             // timers when a different tab is active, or the window has been minimized.
             // afk logout has to still happen after 90s of no activity (if allowed).
             // https://developer.chrome.com/blog/timer-throttling-in-chrome-88/
-            if (Date.now() - this.idleCycles > 90_000) {
+            if (performance.now() - this.idleCycles > 90_000) {
                 // 4500 ticks * 20ms = 90000ms
                 this.idleTimeout = 250;
                 // 500 ticks * 20ms = 10000ms
-                this.idleCycles = Date.now() - 10_000;
+                this.idleCycles = performance.now() - 10_000;
                 this.out.p1isaac(ClientProt.IDLE_TIMER);
             }
             // === original code ===
@@ -3276,8 +3277,12 @@ export class Client extends GameShell {
         Model.pickedCount = 0;
         Model.mouseX = this.mouseX - 8;
         Model.mouseY = this.mouseY - 11;
-        Pix2D.clear();
+
+        Pix2D.clear(Renderer.getSceneClearColor());
+        Renderer.startRenderScene();
         this.scene?.draw(this.cameraX, this.cameraY, this.cameraZ, level, this.cameraYaw, this.cameraPitch, this.loopCycle);
+        Renderer.endRenderScene();
+
         this.scene?.clearTemporaryLocs();
         this.draw2DEntityElements();
         this.drawTileHint();
@@ -3578,29 +3583,6 @@ export class Client extends GameShell {
         if (this.worldLocationState === 1) {
             this.imageHeadicons[6]?.draw(472, 296);
             this.fontPlain12?.drawStringCenter(484, 329, 'Arena', Colors.YELLOW);
-        }
-
-        if (this.displayFps) {
-            let x: number = 507;
-            let y: number = 20;
-
-            let color: number = Colors.YELLOW;
-            if (this.fps < 15) {
-                color = Colors.RED;
-            }
-
-            this.fontPlain12?.drawStringRight(x, y, 'Fps:' + this.fps, color);
-            y += 15;
-
-            let memoryUsage = -1;
-            if (typeof window.performance['memory' as keyof Performance] !== 'undefined') {
-                const memory = window.performance['memory' as keyof Performance] as any;
-                memoryUsage = (memory.usedJSHeapSize / 1024) | 0;
-            }
-
-            if (memoryUsage !== -1) {
-                this.fontPlain12?.drawStringRight(x, y, 'Mem:' + memoryUsage + 'k', Colors.YELLOW);
-            }
         }
 
         if (this.systemUpdateTimer !== 0) {
@@ -5417,17 +5399,69 @@ export class Client extends GameShell {
                         if ((key === 13 || key === 10) && this.chatTyped.length > 0) {
                             if (this.chatTyped.startsWith('::')) {
                                 if (this.chatTyped === '::fpson') {
-                                    // authentic in later revs
-                                    this.displayFps = true;
+                                    // authentic command in later revs
+                                    this.drawStats.dom.style.display = 'block';
+                                    this.updateStats.dom.style.display = 'block';
                                 } else if (this.chatTyped === '::fpsoff') {
-                                    // authentic in later revs
-                                    this.displayFps = false;
-                                } else if (this.chatTyped.startsWith('::fps ')) {
-                                    // custom ::fps command for setting a target framerate
+                                    // authentic command in later revs
+                                    this.drawStats.dom.style.display = 'none';
+                                    this.updateStats.dom.style.display = 'none';
+                                } else if (this.chatTyped === '::tk0') {
+                                    // CPU renderer
+                                    if (Renderer.renderer) {
+                                        Renderer.resetRenderer();
+                                        this.redrawAll();
+                                    }
+                                } else if (this.chatTyped === '::tk1') {
+                                    // WebGPU renderer (1:1 - not widespread yet)
                                     try {
-                                        const desiredFps = parseInt(this.chatTyped.substring(6)) || 50;
-                                        this.setTargetedFramerate(desiredFps);
-                                    } catch (e) { }
+                                        Renderer.renderer = await RendererWebGPU.init(canvasContainer, this.width, this.height);
+                                        this.redrawAll();
+
+                                        if (!Renderer.renderer) {
+                                            this.addMessage(0, 'Failed to change renderer', '');
+                                        }
+                                    } catch (e) {
+                                        if (e instanceof Error) {
+                                            this.addMessage(0, 'Error enabling renderer: ' + e.message, '');
+                                        }
+
+                                        console.error('Failed enabling renderer', e);
+                                    }
+                                } else if (this.chatTyped === '::tk2') {
+                                    // WebGL renderer (working towards 1:1 rasterizing in fragment shaders)
+                                    try {
+                                        Renderer.renderer = RendererWebGL.init(canvasContainer, this.width, this.height);
+                                        this.redrawAll();
+
+                                        if (!Renderer.renderer) {
+                                            this.addMessage(0, 'Failed to change renderer', '');
+                                        }
+                                    } catch (e) {
+                                        if (e instanceof Error) {
+                                            this.addMessage(0, 'Error enabling renderer: ' + e.message, '');
+                                        }
+
+                                        console.error('Failed enabling renderer', e);
+                                    }
+                                } else if (this.chatTyped === '::tk3') {
+                                    // WebGL renderer (not 1:1 - closer to typical GL rendering)
+                                    try {
+                                        Renderer.renderer = RendererWebGLC.init(canvasContainer, this.width, this.height);
+                                        RendererWebGLC.onSceneLoaded(this.scene);
+                                        RendererWebGLC.setBrightness(0.8); // todo: preserve brightness
+                                        this.redrawAll();
+
+                                        if (!Renderer.renderer) {
+                                            this.addMessage(0, 'Failed to change renderer', '');
+                                        }
+                                    } catch (e) {
+                                        if (e instanceof Error) {
+                                            this.addMessage(0, 'Error enabling renderer: ' + e.message, '');
+                                        }
+
+                                        console.error('Failed enabling renderer', e);
+                                    }
                                 } else {
                                     this.out.p1isaac(ClientProt.CLIENT_CHEAT);
                                     this.out.p1(this.chatTyped.length - 1);
@@ -5622,7 +5656,7 @@ export class Client extends GameShell {
             Pix2D.clear();
             this.imageMapback?.draw(0, 0);
             this.areaSidebar = new PixMap(190, 261);
-            this.areaViewport = new PixMap(512, 334);
+            this.areaViewport = RendererWebGLC.areaViewport = new PixMap(512, 334);
             Pix2D.clear();
             this.areaBackbase1 = new PixMap(501, 61);
             this.areaBackbase2 = new PixMap(288, 40);
@@ -6541,6 +6575,9 @@ export class Client extends GameShell {
                 this.chatbackInput = '';
                 this.redrawChatback = true;
                 this.inPacketType = -1;
+                if (this.isMobile) {
+                    MobileKeyboard.show();
+                }
                 return true;
             }
 
@@ -7240,6 +7277,8 @@ export class Client extends GameShell {
                     }
                 }
             }
+
+            RendererWebGLC.onSceneLoaded(this.scene);
 
             for (let x: number = 0; x < CollisionConstants.SIZE; x++) {
                 for (let z: number = 0; z < CollisionConstants.SIZE; z++) {
@@ -10526,5 +10565,17 @@ export class Client extends GameShell {
         }
 
         this.imageTitle1?.draw(661, 0);
+
+        if (this.isMobile) {
+            MobileKeyboard.draw();
+        }
+    }
+
+    private redrawAll() {
+        this.redrawChatback = true;
+        this.redrawPrivacySettings = true;
+        this.redrawSidebar = true;
+        this.redrawSideicons = true;
+        this.redrawTitleBackground = true;
     }
 }
