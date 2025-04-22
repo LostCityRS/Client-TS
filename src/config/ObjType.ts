@@ -426,7 +426,7 @@ export default class ObjType extends ConfigType {
         }
 
         model.calculateNormals(64, 768, -50, -10, -50, true);
-        model.pickable = true;
+        model.pickAabb = true;
         ObjType.modelCache?.put(BigInt(this.id), model);
         return model;
     }

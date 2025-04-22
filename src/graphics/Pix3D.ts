@@ -1,5 +1,6 @@
 import Pix2D from '#/graphics/Pix2D.js';
 import Pix8 from '#/graphics/Pix8.js';
+import { Renderer } from '#/graphics/renderer/Renderer.ts';
 
 import Jagfile from '#/io/Jagfile.js';
 import { Int32Array2d, TypedArray1d } from '#/util/Arrays.js';
@@ -33,7 +34,7 @@ export default class Pix3D extends Pix2D {
     static texPal: (Int32Array | null)[] = new TypedArray1d(50, null);
 
     private static opaque: boolean = false;
-    private static textureTranslucent: boolean[] = new TypedArray1d(50, false);
+    static textureTranslucent: boolean[] = new TypedArray1d(50, false);
     private static averageTextureRGB: Int32Array = new Int32Array(50);
 
     static {
@@ -123,6 +124,67 @@ export default class Pix3D extends Pix2D {
         return rgb;
     }
 
+    static convertHsl(hue: number, saturation: number, lightness: number): number {
+        let r: number = lightness;
+        let g: number = lightness;
+        let b: number = lightness;
+
+        if (saturation !== 0.0) {
+            let q: number;
+            if (lightness < 0.5) {
+                q = lightness * (saturation + 1.0);
+            } else {
+                q = lightness + saturation - lightness * saturation;
+            }
+
+            const p: number = lightness * 2.0 - q;
+            let t: number = hue + 0.3333333333333333;
+            if (t > 1.0) {
+                t--;
+            }
+
+            let d11: number = hue - 0.3333333333333333;
+            if (d11 < 0.0) {
+                d11++;
+            }
+
+            if (t * 6.0 < 1.0) {
+                r = p + (q - p) * 6.0 * t;
+            } else if (t * 2.0 < 1.0) {
+                r = q;
+            } else if (t * 3.0 < 2.0) {
+                r = p + (q - p) * (0.6666666666666666 - t) * 6.0;
+            } else {
+                r = p;
+            }
+
+            if (hue * 6.0 < 1.0) {
+                g = p + (q - p) * 6.0 * hue;
+            } else if (hue * 2.0 < 1.0) {
+                g = q;
+            } else if (hue * 3.0 < 2.0) {
+                g = p + (q - p) * (0.6666666666666666 - hue) * 6.0;
+            } else {
+                g = p;
+            }
+
+            if (d11 * 6.0 < 1.0) {
+                b = p + (q - p) * 6.0 * d11;
+            } else if (d11 * 2.0 < 1.0) {
+                b = q;
+            } else if (d11 * 3.0 < 2.0) {
+                b = p + (q - p) * (0.6666666666666666 - d11) * 6.0;
+            } else {
+                b = p;
+            }
+        }
+
+        const intR: number = (r * 256.0) | 0;
+        const intG: number = (g * 256.0) | 0;
+        const intB: number = (b * 256.0) | 0;
+        return (intR << 16) + (intG << 8) + intB;
+    }
+
     static setBrightness(brightness: number): void {
         const randomBrightness: number = brightness + Math.random() * 0.03 - 0.015;
         let offset: number = 0;
@@ -131,57 +193,7 @@ export default class Pix3D extends Pix2D {
             const saturation: number = (y & 0x7) / 8.0 + 0.0625;
             for (let x: number = 0; x < 128; x++) {
                 const lightness: number = x / 128.0;
-                let r: number = lightness;
-                let g: number = lightness;
-                let b: number = lightness;
-                if (saturation !== 0.0) {
-                    let q: number;
-                    if (lightness < 0.5) {
-                        q = lightness * (saturation + 1.0);
-                    } else {
-                        q = lightness + saturation - lightness * saturation;
-                    }
-                    const p: number = lightness * 2.0 - q;
-                    let t: number = hue + 0.3333333333333333;
-                    if (t > 1.0) {
-                        t--;
-                    }
-                    let d11: number = hue - 0.3333333333333333;
-                    if (d11 < 0.0) {
-                        d11++;
-                    }
-                    if (t * 6.0 < 1.0) {
-                        r = p + (q - p) * 6.0 * t;
-                    } else if (t * 2.0 < 1.0) {
-                        r = q;
-                    } else if (t * 3.0 < 2.0) {
-                        r = p + (q - p) * (0.6666666666666666 - t) * 6.0;
-                    } else {
-                        r = p;
-                    }
-                    if (hue * 6.0 < 1.0) {
-                        g = p + (q - p) * 6.0 * hue;
-                    } else if (hue * 2.0 < 1.0) {
-                        g = q;
-                    } else if (hue * 3.0 < 2.0) {
-                        g = p + (q - p) * (0.6666666666666666 - hue) * 6.0;
-                    } else {
-                        g = p;
-                    }
-                    if (d11 * 6.0 < 1.0) {
-                        b = p + (q - p) * 6.0 * d11;
-                    } else if (d11 * 2.0 < 1.0) {
-                        b = q;
-                    } else if (d11 * 3.0 < 2.0) {
-                        b = p + (q - p) * (0.6666666666666666 - d11) * 6.0;
-                    } else {
-                        b = p;
-                    }
-                }
-                const intR: number = (r * 256.0) | 0;
-                const intG: number = (g * 256.0) | 0;
-                const intB: number = (b * 256.0) | 0;
-                const rgb: number = (intR << 16) + (intG << 8) + intB;
+                const rgb = this.convertHsl(hue, saturation, lightness);
                 this.hslPal[offset++] = this.setGamma(rgb, randomBrightness);
             }
         }
@@ -204,6 +216,8 @@ export default class Pix3D extends Pix2D {
         for (let id: number = 0; id < 50; id++) {
             this.pushTexture(id);
         }
+
+        Renderer.setBrightness(randomBrightness);
     }
 
     private static setGamma(rgb: number, gamma: number): number {
@@ -233,6 +247,10 @@ export default class Pix3D extends Pix2D {
     }
 
     static fillGouraudTriangle(xA: number, xB: number, xC: number, yA: number, yB: number, yC: number, colorA: number, colorB: number, colorC: number): void {
+        if (Renderer.fillGouraudTriangle(xA, xB, xC, yA, yB, yC, colorA, colorB, colorC)) {
+            return;
+        }
+
         let xStepAB: number = 0;
         let colorStepAB: number = 0;
         if (yB !== yA) {
@@ -856,6 +874,10 @@ export default class Pix3D extends Pix2D {
     }
 
     static fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): void {
+        if (Renderer.fillTriangle(x0, x1, x2, y0, y1, y2, color)) {
+            return;
+        }
+
         let xStepAB: number = 0;
         if (y1 !== y0) {
             xStepAB = (((x1 - x0) << 16) / (y1 - y0)) | 0;
@@ -1298,6 +1320,10 @@ export default class Pix3D extends Pix2D {
         tzC: number,
         texture: number
     ): void {
+        if (Renderer.fillTexturedTriangle(xA, xB, xC, yA, yB, yC, shadeA, shadeB, shadeC, originX, originY, originZ, txB, txC, tyB, tyC, tzB, tzC, texture)) {
+            return;
+        }
+
         const texels: Int32Array | null = this.getTexels(texture);
         this.opaque = !this.textureTranslucent[texture];
 
@@ -2496,9 +2522,11 @@ export default class Pix3D extends Pix2D {
             this.texelPool[this.poolSize++] = this.activeTexels[id];
             this.activeTexels[id] = null;
         }
+
+        Renderer.updateTexture(id);
     }
 
-    private static getTexels(id: number): Int32Array | null {
+    static getTexels(id: number): Int32Array | null {
         this.textureCycle[id] = this.cycle++;
         if (this.activeTexels[id]) {
             return this.activeTexels[id];

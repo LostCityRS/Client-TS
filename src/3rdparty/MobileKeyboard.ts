@@ -1,4 +1,4 @@
-import { canvas, canvas2d } from "#/graphics/Canvas";
+import { canvasOverlay, canvas2d } from "#/graphics/Canvas";
 
 // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"£$%^&*()-_=+[{]};:\'@#~,<.>/?\\| 
 // ^ Allowed characters in client
@@ -435,8 +435,8 @@ class CanvasMobileKeyboard implements Keyboard {
                 key: char,
                 code: char,
             })
-            canvas.dispatchEvent(downEvent);
-            canvas.dispatchEvent(upEvent);
+            canvasOverlay.dispatchEvent(downEvent);
+            canvasOverlay.dispatchEvent(upEvent);
             if (!this.animateBoxTimeout) {
                 if (index >= 30 && index <= 35) {
                     this.animateBoxIndex = 30;
@@ -492,7 +492,7 @@ class CanvasMobileKeyboard implements Keyboard {
             this.startX = newStartX;
             this.startY = newStartY;
             // Focus event forces a re-draw of canvas
-            canvas.dispatchEvent(new FocusEvent('focus'));
+            canvasOverlay.dispatchEvent(new FocusEvent('focus'));
         }
     }
 }
@@ -510,7 +510,7 @@ class NativeMobileKeyboard implements Keyboard {
         this.virtualInputElement.setAttribute('autofocus', 'autofocus');
         this.virtualInputElement.setAttribute('spellcheck', 'false');
         this.virtualInputElement.setAttribute('autocomplete', 'off');
-        this.virtualInputElement.setAttribute('style', 'position: fixed; top: 0px; left: 0px; width: 1px; height: 1px; opacity: 0;');
+        this.virtualInputElement.setAttribute('style', `position: fixed; top: 0px; left: 0px; width: 1px; height: 1px; opacity: 0; z-index: 20;`);
         if (this.isAndroid) {
             // Android uses `input` event for text entry rathern than `keydown` / `keyup`
 
@@ -528,27 +528,27 @@ class NativeMobileKeyboard implements Keyboard {
                     return;
                 }
 
-                canvas.dispatchEvent(new KeyboardEvent('keydown', { key: data, code: data }));
-                canvas.dispatchEvent(new KeyboardEvent('keyup', { key: data, code: data }));
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keydown', { key: data, code: data }));
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keyup', { key: data, code: data }));
             });
 
             this.virtualInputElement.addEventListener('keydown', (ev: KeyboardEvent) => {
                 if (ev.key === 'Enter' || ev.key === 'Backspace') {
-                    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.key }));
+                    canvasOverlay.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.key }));
                 }
             });
             this.virtualInputElement.addEventListener('keyup', (ev: KeyboardEvent) => {
                 if (ev.key === 'Enter' || ev.key === 'Backspace') {
-                    canvas.dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.key }));
+                    canvasOverlay.dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.key }));
                 }
             });
         } else {
             // Non-android can use `keydown` / `keyup` directly
             this.virtualInputElement.addEventListener('keydown', (ev: KeyboardEvent) => {
-                canvas.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.key }));
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.key }));
             });
             this.virtualInputElement.addEventListener('keyup', (ev: KeyboardEvent) => {
-                canvas.dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.key }));
+                canvasOverlay.dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.key }));
             });
         }
         document.body.appendChild(this.virtualInputElement);
@@ -562,7 +562,7 @@ class NativeMobileKeyboard implements Keyboard {
             this.virtualInputElement.style.left = `${originX}px`;
             this.virtualInputElement.style.top = `${originY}px`;
         }
-        canvas.blur();
+        canvasOverlay.blur();
         this.virtualInputElement.focus();
         this.virtualInputElement.click();
         this.displayed = true;
@@ -570,7 +570,7 @@ class NativeMobileKeyboard implements Keyboard {
     hide(): void {
         // Blur the virtual input field
         this.virtualInputElement.blur();
-        canvas.focus();
+        canvasOverlay.focus();
         this.displayed = false;
     }
     isDisplayed(): boolean {

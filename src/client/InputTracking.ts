@@ -1,4 +1,6 @@
 import Packet from '#/io/Packet.js';
+import { PacketType } from '#/io/PacketType.ts';
+import { InputTrackingType } from '#/client/InputTrackingType.ts';
 
 export default class InputTracking {
     static trackingActive: boolean = false;
@@ -10,8 +12,10 @@ export default class InputTracking {
     static lastX: number = 0;
     static lastY: number = 0;
 
+    private static readonly MAX_BYTES: number = 500;
+
     static setEnabled(): void {
-        this.outBuffer = Packet.alloc(1);
+        this.outBuffer = Packet.alloc(PacketType.TYPE_5KB);
         this.oldBuffer = null;
         this.lastTime = performance.now();
         this.trackingActive = true;
@@ -53,9 +57,9 @@ export default class InputTracking {
         this.lastTime = now;
         this.ensureCapacity(5);
         if (button === 2) {
-            this.outBuffer?.p1(1);
+            this.outBuffer?.p1(InputTrackingType.MOUSEDOWNR);
         } else {
-            this.outBuffer?.p1(2);
+            this.outBuffer?.p1(InputTrackingType.MOUSEDOWNL);
         }
         this.outBuffer?.p1(delta);
         this.outBuffer?.p3(x + (y << 10));
@@ -74,9 +78,9 @@ export default class InputTracking {
         this.lastTime = now;
         this.ensureCapacity(2);
         if (button === 2) {
-            this.outBuffer?.p1(3);
+            this.outBuffer?.p1(InputTrackingType.MOUSEUPR);
         } else {
-            this.outBuffer?.p1(4);
+            this.outBuffer?.p1(InputTrackingType.MOUSEUPL);
         }
         this.outBuffer?.p1(delta);
     }
@@ -98,18 +102,18 @@ export default class InputTracking {
             this.lastTime = now;
             if (x - this.lastX < 8 && x - this.lastX >= -8 && y - this.lastY < 8 && y - this.lastY >= -8) {
                 this.ensureCapacity(3);
-                this.outBuffer?.p1(5);
+                this.outBuffer?.p1(InputTrackingType.MOUSEMOVE1);
                 this.outBuffer?.p1(delta);
                 this.outBuffer?.p1(x + ((y - this.lastY + 8) << 4) + 8 - this.lastX);
             } else if (x - this.lastX < 128 && x - this.lastX >= -128 && y - this.lastY < 128 && y - this.lastY >= -128) {
                 this.ensureCapacity(4);
-                this.outBuffer?.p1(6);
+                this.outBuffer?.p1(InputTrackingType.MOUSEMOVE2);
                 this.outBuffer?.p1(delta);
                 this.outBuffer?.p1(x + 128 - this.lastX);
                 this.outBuffer?.p1(y + 128 - this.lastY);
             } else {
                 this.ensureCapacity(5);
-                this.outBuffer?.p1(7);
+                this.outBuffer?.p1(InputTrackingType.MOUSEMOVE3);
                 this.outBuffer?.p1(delta);
                 this.outBuffer?.p3(x + (y << 10));
             }
@@ -142,7 +146,7 @@ export default class InputTracking {
             key -= 992;
         }
         this.ensureCapacity(3);
-        this.outBuffer?.p1(8);
+        this.outBuffer?.p1(InputTrackingType.KEYDOWN);
         this.outBuffer?.p1(delta);
         this.outBuffer?.p1(key);
     }
@@ -170,7 +174,7 @@ export default class InputTracking {
             key -= 992;
         }
         this.ensureCapacity(3);
-        this.outBuffer?.p1(9);
+        this.outBuffer?.p1(InputTrackingType.KEYUP);
         this.outBuffer?.p1(delta);
         this.outBuffer?.p1(key);
     }
@@ -187,7 +191,7 @@ export default class InputTracking {
         }
         this.lastTime = now;
         this.ensureCapacity(2);
-        this.outBuffer?.p1(10);
+        this.outBuffer?.p1(InputTrackingType.FOCUS);
         this.outBuffer?.p1(delta);
     }
 
@@ -203,7 +207,7 @@ export default class InputTracking {
         }
         this.lastTime = now;
         this.ensureCapacity(2);
-        this.outBuffer?.p1(11);
+        this.outBuffer?.p1(InputTrackingType.BLUR);
         this.outBuffer?.p1(delta);
     }
 
@@ -219,7 +223,7 @@ export default class InputTracking {
         }
         this.lastTime = now;
         this.ensureCapacity(2);
-        this.outBuffer?.p1(12);
+        this.outBuffer?.p1(InputTrackingType.MOUSEENTER);
         this.outBuffer?.p1(delta);
     }
 
@@ -235,7 +239,7 @@ export default class InputTracking {
         }
         this.lastTime = now;
         this.ensureCapacity(2);
-        this.outBuffer?.p1(13);
+        this.outBuffer?.p1(InputTrackingType.MOUSELEAVE);
         this.outBuffer?.p1(delta);
     }
 
@@ -243,9 +247,9 @@ export default class InputTracking {
         if (!this.outBuffer) {
             return;
         }
-        if (this.outBuffer.pos + n >= 500) {
+        if (this.outBuffer.pos + n >= InputTracking.MAX_BYTES) {
             const buffer: Packet = this.outBuffer;
-            this.outBuffer = Packet.alloc(1);
+            this.outBuffer = Packet.alloc(PacketType.TYPE_5KB);
             this.oldBuffer = buffer;
         }
     }

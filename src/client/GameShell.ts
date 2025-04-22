@@ -1,4 +1,4 @@
-import { canvas, canvas2d } from '#/graphics/Canvas.js';
+import { canvas, canvas2d, canvasContainer, canvasOverlay } from '#/graphics/Canvas.js';
 import Pix3D from '#/graphics/Pix3D.js';
 import PixMap from '#/graphics/PixMap.js';
 
@@ -7,6 +7,9 @@ import { sleep } from '#/util/JsUtil.js';
 import { CanvasEnabledKeys, KeyCodes } from '#/client/KeyCodes.js';
 import InputTracking from '#/client/InputTracking.js';
 import { MobileKeyboard } from '#3rdparty/deps.js';
+import { Renderer } from '#/graphics/renderer/Renderer.ts';
+import Stats from 'stats.js';
+import { MouseButton } from '#/client/MouseButton.ts';
 
 export default abstract class GameShell {
     protected slowestMS: number = 0.0; // custom
@@ -15,15 +18,8 @@ export default abstract class GameShell {
 
     protected drawArea: PixMap | null = null;
     protected state: number = 0;
-    protected deltime: number = 20;
-    protected mindel: number = 1;
-    protected otim: number[] = [];
-    protected fps: number = 0;
-    protected fpos: number = 0;
-    protected frameTime: number[] = [];
     protected redrawScreen: boolean = true;
     protected resizeToFit: boolean = false;
-    protected tfps: number = 50; // custom
     protected hasFocus: boolean = true; // mapview applet
 
     protected ingame: boolean = false;
@@ -52,6 +48,15 @@ export default abstract class GameShell {
     private nx: number = 0;
     private ny: number = 0;
 
+    // game loop
+    drawStats: Stats = new Stats();
+    updateStats: Stats = new Stats();
+
+    rafId: number = 0;
+    updateRate: number = 20;
+    updateAcc: number = 0;
+    lastUpdate: number = performance.now();
+
     abstract getTitleScreenState(): number;
     abstract isChatBackInputOpen(): boolean;
     abstract isShowSocialInput(): boolean;
@@ -59,13 +64,13 @@ export default abstract class GameShell {
     abstract getViewportInterfaceId(): number;
     abstract getReportAbuseInterfaceId(): number; // custom: report abuse input on mobile
 
-    protected async load() {}
-    protected async update() {}
-    protected async draw() {}
-    protected async refresh() {}
+    protected async load() { }
+    protected async update(now: number) { }
+    protected async draw(now: number) { }
+    protected async refresh() { }
 
-    constructor(resizetoFit: boolean = false) {
-        canvas.tabIndex = -1;
+    protected constructor(resizetoFit: boolean = false) {
+        canvasOverlay.tabIndex = -1;
         canvas2d.fillStyle = 'black';
         canvas2d.fillRect(0, 0, canvas.width, canvas.height);
         this.resizeToFit = resizetoFit;
@@ -89,6 +94,7 @@ export default abstract class GameShell {
         canvas.height = height;
         this.drawArea = new PixMap(width, height);
         Pix3D.init2D();
+        Renderer.resize(width, height);
     }
 
     async run() {
@@ -102,27 +108,29 @@ export default abstract class GameShell {
             false
         );
 
-        canvas.onfocus = this.onfocus.bind(this);
-        canvas.onblur = this.onblur.bind(this);
+        canvasOverlay.focus();
+
+        canvasOverlay.onfocus = this.onfocus.bind(this);
+        canvasOverlay.onblur = this.onblur.bind(this);
 
         // pc
-        canvas.onmousedown = this.onmousedown.bind(this);
-        canvas.onmouseup = this.onmouseup.bind(this);
-        canvas.onmouseenter = this.onmouseenter.bind(this);
-        canvas.onmouseleave = this.onmouseleave.bind(this);
-        canvas.onmousemove = this.onmousemove.bind(this);
-        canvas.onkeydown = this.onkeydown.bind(this);
-        canvas.onkeyup = this.onkeyup.bind(this);
+        canvasOverlay.onmousedown = this.onmousedown.bind(this);
+        canvasOverlay.onmouseup = this.onmouseup.bind(this);
+        canvasOverlay.onmouseenter = this.onmouseenter.bind(this);
+        canvasOverlay.onmouseleave = this.onmouseleave.bind(this);
+        canvasOverlay.onmousemove = this.onmousemove.bind(this);
+        canvasOverlay.onkeydown = this.onkeydown.bind(this);
+        canvasOverlay.onkeyup = this.onkeyup.bind(this);
 
         if (this.isMobile) {
-            canvas.ontouchstart = this.ontouchstart.bind(this);
-            canvas.ontouchend = this.ontouchend.bind(this);
-            canvas.ontouchmove = this.ontouchmove.bind(this);
+            canvasOverlay.ontouchstart = this.ontouchstart.bind(this);
+            canvasOverlay.ontouchend = this.ontouchend.bind(this);
+            canvasOverlay.ontouchmove = this.ontouchmove.bind(this);
         }
 
         // Preventing mouse events from bubbling up to the context menu in the browser for our canvas.
         // This may need to be hooked up to our own context menu in the future.
-        canvas.oncontextmenu = (e: MouseEvent): void => {
+        canvasOverlay.oncontextmenu = (e: MouseEvent): void => {
             e.preventDefault();
         };
 
@@ -133,17 +141,25 @@ export default abstract class GameShell {
         await this.showProgress(0, 'Loading...');
         await this.load();
 
-        for (let i: number = 0; i < 10; i++) {
-            this.otim[i] = performance.now();
-        }
+        this.drawStats.showPanel(0);
+        this.drawStats.dom.style.cssText = 'display:none;position:absolute;top:0px;right:0px;';
+        canvasContainer.appendChild(this.drawStats.dom);
 
-        let ntime: number;
-        let opos: number = 0;
-        let ratio: number = 256;
-        let delta: number = 1;
-        let count: number = 0;
+        this.updateStats.showPanel(1);
+        this.updateStats.dom.style.cssText = 'display:none;position:absolute;top:48px;right:0px;';
+        canvasContainer.appendChild(this.updateStats.dom);
 
-        while (this.state >= 0) {
+        setTimeout(this.mainupdate.bind(this), 0);
+        window.requestAnimationFrame(this.maindraw.bind(this));
+    }
+
+    protected async mainupdate() {
+        const now = performance.now();
+        const elapsed = now - this.lastUpdate;
+        this.lastUpdate = now;
+
+        this.updateAcc += elapsed;
+        if (this.updateAcc >= this.updateRate) {
             if (this.state > 0) {
                 this.state--;
 
@@ -153,92 +169,47 @@ export default abstract class GameShell {
                 }
             }
 
-            const lastRatio: number = ratio;
-            const lastDelta: number = delta;
-            ratio = 300;
-            delta = 1;
-
-            ntime = performance.now();
-            const otim: number = this.otim[opos];
-
-            if (otim === 0) {
-                ratio = lastRatio;
-                delta = lastDelta;
-            } else if (ntime > otim) {
-                ratio = ((this.deltime * 2560) / (ntime - otim)) | 0;
-            }
-
-            if (ratio < 25) {
-                ratio = 25;
-            } else if (ratio > 256) {
-                ratio = 256;
-                delta = (this.deltime - (ntime - otim) / 10) | 0;
-            }
-
-            this.otim[opos] = ntime;
-            opos = (opos + 1) % 10;
-
-            if (delta > 1) {
-                for (let i: number = 0; i < 10; i++) {
-                    if (this.otim[i] !== 0) {
-                        this.otim[i] += delta;
-                    }
-                }
-            }
-
-            if (delta < this.mindel) {
-                delta = this.mindel;
-            }
-
-            await sleep(delta);
-
-            while (count < 256) {
-                await this.update();
-                this.mouseClickButton = 0;
-                this.keyQueueReadPos = this.keyQueueWritePos;
-                count += ratio;
-            }
-
-            count &= 0xff;
-
-            if (this.deltime > 0) {
-                this.fps = ((ratio * 1000) / (this.deltime * 256)) | 0;
-            }
-
-            const time: number = performance.now();
-
-            await this.draw();
-            // CUSTOM: MobileKeyboard
-            if (this.isMobile) {
-                MobileKeyboard.draw();
-            }
-
-            this.frameTime[this.fpos] = (performance.now() - time) / 1000;
-            this.fpos = (this.fpos + 1) % this.frameTime.length;
-
-            // this is custom for targeting specific fps (on mobile).
-            if (this.tfps < 50) {
-                const tfps: number = 1000 / this.tfps - (performance.now() - ntime);
-                if (tfps > 0) {
-                    await sleep(tfps);
-                }
-            }
+            this.updateStats.update();
         }
-        if (this.state === -1) {
-            this.shutdown();
+
+        while (this.updateAcc >= this.updateRate) {
+            await this.mainupdateinner(now);
+            this.updateAcc -= this.updateRate;
+        }
+
+        setTimeout(this.mainupdate.bind(this), 1);
+    }
+
+    protected async mainupdateinner(now: number) {
+        await this.update(now);
+        this.mouseClickButton = MouseButton.NONE;
+        this.keyQueueReadPos = this.keyQueueWritePos;
+    }
+
+    protected async maindraw(now: number) {
+        this.drawStats.begin();
+        await this.maindrawinner(now);
+        this.drawStats.end();
+
+        this.rafId = window.requestAnimationFrame(this.maindraw.bind(this)); // MDN says to put it at the start. DO NOT :')
+    }
+
+    protected async maindrawinner(now: number) {
+        await this.draw(now);
+
+        // CUSTOM: MobileKeyboard
+        if (this.isMobile) {
+            MobileKeyboard.draw();
         }
     }
 
     protected shutdown() {
         this.state = -2;
+        window.cancelAnimationFrame(this.rafId);
     }
 
-    protected setFramerate(rate: number) {
-        this.deltime = (1000 / rate) | 0;
-    }
-
-    protected setTargetedFramerate(rate: number) {
-        this.tfps = Math.max(Math.min(50, rate | 0), 0);
+    protected setUpdateRate(rate: number) {
+        this.updateRate = (1000 / rate) | 0;
     }
 
     protected start() {
@@ -249,7 +220,7 @@ export default abstract class GameShell {
 
     protected stop() {
         if (this.state >= 0) {
-            this.state = (4000 / this.deltime) | 0;
+            this.state = (4000 / this.updateRate) | 0;
         }
     }
 
@@ -297,25 +268,6 @@ export default abstract class GameShell {
         return key;
     }
 
-    protected get ms(): number {
-        const length: number = this.frameTime.length;
-        let ft: number = 0;
-        for (let index: number = 0; index < length; index++) {
-            ft += this.frameTime[index];
-        }
-        const ms: number = (ft / length) * 1000;
-        if (ms > this.slowestMS) {
-            this.slowestMS = ms;
-        }
-        this.averageMS[this.averageIndexMS] = ms;
-        this.averageIndexMS = (this.averageIndexMS + 1) % 250; // 250 circular limit
-        return ms;
-    }
-
-    protected get msAvg(): number {
-        return this.averageMS.reduce((accumulator: number, currentValue: number): number => accumulator + currentValue, 0) / 250; // 250 circular limit
-    }
-
     // ----
     private onkeydown(e: KeyboardEvent) {
         this.idleCycles = performance.now();
@@ -328,7 +280,7 @@ export default abstract class GameShell {
         let ch: number = keyCode.ch;
 
         if (e.ctrlKey) {
-            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch == '_'.charCodeAt(0)) {
+            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch === '_'.charCodeAt(0)) {
                 ch -= 'A'.charCodeAt(0) - 1;
             } else if (ch >= 'a'.charCodeAt(0) && ch <= 'z'.charCodeAt(0)) {
                 ch -= 'a'.charCodeAt(0) - 1;
@@ -364,7 +316,7 @@ export default abstract class GameShell {
         let ch: number = keyCode.ch;
 
         if (e.ctrlKey) {
-            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch == '_'.charCodeAt(0)) {
+            if ((ch >= 'A'.charCodeAt(0) && ch <= ']'.charCodeAt(0)) || ch === '_'.charCodeAt(0)) {
                 ch -= 'A'.charCodeAt(0) - 1;
             } else if (ch >= 'a'.charCodeAt(0) && ch <= 'z'.charCodeAt(0)) {
                 ch -= 'a'.charCodeAt(0) - 1;
@@ -398,35 +350,35 @@ export default abstract class GameShell {
             if (this.insideMobileInputArea() && !this.insideUsernameArea() && !this.inPasswordArea()) {
                 // Negate the mousedown event - it's inside mobile input area
                 // It will be handled by mouseup.
-                this.mouseClickButton = 0;
-                this.mouseButton = 0;
+                this.mouseClickButton = MouseButton.LEFT;
+                this.mouseButton = MouseButton.LEFT;
                 return;
             }
 
             const eventTime: number = e.timeStamp;
             if (eventTime >= this.time + 500) {
-                this.mouseClickButton = 2;
-                this.mouseButton = 2;
+                this.mouseClickButton = MouseButton.RIGHT;
+                this.mouseButton = MouseButton.RIGHT;
             } else {
-                this.mouseClickButton = 1;
-                this.mouseButton = 1;
+                this.mouseClickButton = MouseButton.LEFT;
+                this.mouseButton = MouseButton.LEFT;
             }
         } else {
             if (e.button === 2) {
-                this.mouseClickButton = 2;
-                this.mouseButton = 2;
+                this.mouseClickButton = MouseButton.RIGHT;
+                this.mouseButton = MouseButton.RIGHT;
             } else if (e.button === 0) {
                 // custom: explicitly check left-mouse button so middle mouse is ignored
-                this.mouseClickButton = 1;
-                this.mouseButton = 1;
+                this.mouseClickButton = MouseButton.LEFT;
+                this.mouseButton = MouseButton.LEFT;
             }
         }
         // CUSTOM: Mobile Keyboard
         if (MobileKeyboard.isDisplayed()) {
             if (MobileKeyboard.captureMouseDown(this.mouseX, this.mouseY)) {
                 // Negate MouseDown if Keyboard shown and inside of Keyboard area
-                this.mouseButton = 0;
-                this.mouseClickButton = 0;
+                this.mouseButton = MouseButton.NONE;
+                this.mouseClickButton = MouseButton.NONE;
             }
         }
 
@@ -438,7 +390,7 @@ export default abstract class GameShell {
     private onmouseup(e: MouseEvent) {
         this.setMousePosition(e);
         this.idleCycles = performance.now();
-        this.mouseButton = 0;
+        this.mouseButton = MouseButton.NONE;
 
         if (InputTracking.trackingActive) {
             InputTracking.mouseReleased(e.button);
@@ -476,7 +428,7 @@ export default abstract class GameShell {
         this.mouseY = -1;
 
         // custom (prevent mouse click from being stuck)
-        this.mouseButton = 0;
+        this.mouseButton = MouseButton.NONE;
         this.mouseClickX = -1;
         this.mouseClickY = -1;
 
@@ -604,23 +556,23 @@ export default abstract class GameShell {
         this.nx = touch.screenX | 0;
         this.ny = touch.screenY | 0;
         if (!MobileKeyboard.isWithinCanvasKeyboard(this.mouseX, this.mouseY)) {  // CUSTOM: MobileKeyboard
-        if (this.startedInViewport && this.getViewportInterfaceId() === -1) {
-            // Camera panning
-            if (this.mx - this.nx > 0) {
-                this.rotate(2);
-            } else if (this.mx - this.nx < 0) {
-                this.rotate(0);
-            }
+            if (this.startedInViewport && this.getViewportInterfaceId() === -1) {
+                // Camera panning
+                if (this.mx - this.nx > 0) {
+                    this.rotate(2);
+                } else if (this.mx - this.nx < 0) {
+                    this.rotate(0);
+                }
 
-            if (this.my - this.ny > 0) {
-                this.rotate(3);
-            } else if (this.my - this.ny < 0) {
-                this.rotate(1);
+                if (this.my - this.ny > 0) {
+                    this.rotate(3);
+                } else if (this.my - this.ny < 0) {
+                    this.rotate(1);
+                }
+            } else if (this.startedInTabArea || this.getViewportInterfaceId() !== -1) {
+                // Drag and drop
+                this.onmousedown(new MouseEvent('mousedown', { clientX, clientY, button: 1 }));
             }
-        } else if (this.startedInTabArea || this.getViewportInterfaceId() !== -1) {
-            // Drag and drop
-            this.onmousedown(new MouseEvent('mousedown', { clientX, clientY, button: 1 }));
-        }
         }  // CUSTOM: MobileKeyboard
 
         this.mx = this.nx;

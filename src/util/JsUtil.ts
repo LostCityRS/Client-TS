@@ -1,4 +1,4 @@
-export const sleep = async (ms: number): Promise<void> => new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, ms));
+export const sleep = async (ms: number): Promise<void> => new Promise((resolve): ReturnType<typeof setTimeout> => setTimeout(resolve, ms));
 
 export const downloadUrl = async (url: string): Promise<Uint8Array> => new Uint8Array(await (await fetch(url)).arrayBuffer());
 

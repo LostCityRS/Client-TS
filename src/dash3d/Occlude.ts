@@ -1,3 +1,5 @@
+import { OccludeMode } from '#/dash3d/OccludeMode.ts';
+
 export default class Occlude {
     // constructor
     readonly minTileX: number;
@@ -13,7 +15,7 @@ export default class Occlude {
     readonly maxY: number;
 
     // runtime
-    mode: number = 0;
+    mode: number = OccludeMode.NONE;
     minDeltaX: number = 0;
     maxDeltaX: number = 0;
     minDeltaZ: number = 0;

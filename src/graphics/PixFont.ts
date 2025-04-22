@@ -257,7 +257,7 @@ export default class PixFont extends DoublyLinkable {
         for (let i: number = 0; i < str.length; i++) {
             const c: number = PixFont.CHARCODESET[str.charCodeAt(i)];
 
-            if (c != 94) {
+            if (c !== 94) {
                 this.drawChar(this.charMask[c], x + this.charOffsetX[c], offY + this.charOffsetY[c] + ((Math.sin(i / 2.0 + phase / 5.0) * 5.0) | 0), this.charMaskWidth[c], this.charMaskHeight[c], color);
             }
 

@@ -1,0 +1,15 @@
+export const enum InputTrackingType {
+    MOUSEDOWNR = 1,
+    MOUSEDOWNL = 2,
+    MOUSEUPR = 3,
+    MOUSEUPL = 4,
+    MOUSEMOVE1 = 5,
+    MOUSEMOVE2 = 6,
+    MOUSEMOVE3 = 7,
+    KEYDOWN = 8,
+    KEYUP = 9,
+    FOCUS = 10,
+    BLUR = 11,
+    MOUSEENTER = 12,
+    MOUSELEAVE = 13,
+}

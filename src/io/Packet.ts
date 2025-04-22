@@ -4,6 +4,7 @@ import LinkList from '#/datastruct/LinkList.js';
 import Isaac from '#/io/Isaac.js';
 
 import { bigIntModPow, bigIntToBytes, bytesToBigInt } from '#/util/JsUtil.js';
+import { PacketType } from '#/io/PacketType.ts';
 
 export default class Packet extends DoublyLinkable {
     private static readonly CRC32_POLYNOMIAL: number = 0xedb88320;
@@ -80,13 +81,13 @@ export default class Packet extends DoublyLinkable {
 
     static alloc(type: number): Packet {
         let cached: Packet | null = null;
-        if (type === 0 && Packet.cacheMinCount > 0) {
+        if (type === PacketType.TYPE_100B && Packet.cacheMinCount > 0) {
             Packet.cacheMinCount--;
             cached = Packet.cacheMin.removeHead() as Packet | null;
-        } else if (type === 1 && Packet.cacheMidCount > 0) {
+        } else if (type === PacketType.TYPE_5KB && Packet.cacheMidCount > 0) {
             Packet.cacheMidCount--;
             cached = Packet.cacheMid.removeHead() as Packet | null;
-        } else if (type === 2 && Packet.cacheMaxCount > 0) {
+        } else if (type === PacketType.TYPE_30KB && Packet.cacheMaxCount > 0) {
             Packet.cacheMaxCount--;
             cached = Packet.cacheMax.removeHead() as Packet | null;
         }
@@ -96,9 +97,9 @@ export default class Packet extends DoublyLinkable {
             return cached;
         }
 
-        if (type === 0) {
+        if (type === PacketType.TYPE_100B) {
             return new Packet(new Uint8Array(100));
-        } else if (type === 1) {
+        } else if (type === PacketType.TYPE_5KB) {
             return new Packet(new Uint8Array(5000));
         }
         return new Packet(new Uint8Array(30000));
