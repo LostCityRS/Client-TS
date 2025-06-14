@@ -230,9 +230,18 @@ export class JagEd extends GameShell {
         Pix2D.clear(0x3F3F3F);
         this.updateTextures(Pix3D.cycle);
 
-        if (this.builtModel) {
-            this.builtModel.drawSimple(0, this.yaw, 0, this.pitch, this.eyeX, this.eyeY, this.eyeZ);
-        }
+    if (this.builtModel) {
+        const sinEyePitch = Pix3D.sin[this.pitch];
+        const cosEyePitch = Pix3D.cos[this.pitch];
+        const sinEyeYaw = Pix3D.sin[this.yaw];
+        const cosEyeYaw = Pix3D.cos[this.yaw];
+
+        const relativeX = -this.eyeX;
+        const relativeY = -this.eyeY;
+        const relativeZ = -this.eyeZ;
+        
+        this.builtModel.draw(0, sinEyePitch, cosEyePitch, sinEyeYaw, cosEyeYaw, relativeX, relativeY, relativeZ, 0);
+    }
 
         this.drawArea?.draw(0, 0);
     }
@@ -1146,7 +1155,7 @@ export class JagEd extends GameShell {
                             /\//g,
                             "_"
                         )}`;
-                        this.builtModel = model;
+                        this.builtModel = clonedModel;
 
                         document
                             .querySelectorAll(".model-item")

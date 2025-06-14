@@ -3442,7 +3442,7 @@ export default class Model extends DoublyLinkable {
             dz = z;
 
             vertexX[v] = x;
-            vertexY[v] = -y;
+            vertexY[v] = y;
             vertexZ[v] = z;
         }
     }
