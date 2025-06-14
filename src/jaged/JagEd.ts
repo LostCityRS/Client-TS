@@ -8,6 +8,7 @@ import type Pix8 from '#/graphics/Pix8.ts';
 import Jagfile from '#/io/Jagfile.ts';
 import FileLoader from '#/jaged/FileLoader.ts';
 import { downloadUrl, sleep } from '#/util/JsUtil.ts';
+import ColorConversion from '#/jaged/ColorConversion.ts';
 
 const LocShapeSuffixMap = {
     _1: 0,
@@ -135,6 +136,17 @@ export class JagEd extends GameShell {
     builtModel: Model | null = null;
     selectedModel: string | null = null;
 
+    moveSpeed: number = 5;
+    rotationSpeed: number = 2;
+    yaw: number = 0;
+    pitch: number = 0;
+    eyeX: number = 0;
+    eyeY: number = 0;
+    eyeZ: number = -420;
+    isDragging: boolean = false;
+    lastMouseX: number = 0;
+    lastMouseY: number = 0;
+
     constructor() {
         super(true);
 
@@ -182,10 +194,20 @@ export class JagEd extends GameShell {
             this.filterModelList()
         );
         this.seqSearchInput.addEventListener("input", () => this.filterSeqList());
+        this.setupMouseHandlers();
 
         Pix3D.lowMemory = false;
 
         this.run();
+    }
+
+    private setupMouseHandlers(): void {
+        const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+        if (canvasElement) {
+            canvasElement.addEventListener('mousedown', (e: MouseEvent) => this.handleMouseDown(e));
+            canvasElement.addEventListener('mouseup', (e: MouseEvent) => this.handleMouseUp(e));
+            canvasElement.addEventListener('mousemove', (e: MouseEvent) => this.handleMouseMove(e));
+        }
     }
 
     async load(): Promise<void> {
@@ -209,7 +231,7 @@ export class JagEd extends GameShell {
         this.updateTextures(Pix3D.cycle);
 
         if (this.builtModel) {
-            this.builtModel.drawSimple(0, 0, 0, 0, 0, 0, -420);
+            this.builtModel.drawSimple(0, this.yaw, 0, this.pitch, this.eyeX, this.eyeY, this.eyeZ);
         }
 
         this.drawArea?.draw(0, 0);
@@ -220,6 +242,163 @@ export class JagEd extends GameShell {
 
     async update(): Promise<void> {
         this.sceneDelta++;
+        this.handleMovement();
+    }
+
+    private handleMouseDown(e: MouseEvent): void {
+        if (e.button === 0) {
+            if (this.builtModel && this.builtModel.pickedFace >= 0) {
+                this.displayFaceInfo(this.builtModel, this.builtModel.pickedFace);
+            } else {
+                this.hideFaceInfo();
+            }
+        } else if (e.button === 2) {
+            this.isDragging = true;
+            this.lastMouseX = this.mouseX;
+            this.lastMouseY = this.mouseY;
+            const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+            if (canvasElement) {
+                canvasElement.style.cursor = 'grabbing';
+            }
+        }
+    }
+
+    private handleMouseUp(e: MouseEvent): void {
+        if (e.button === 2) {
+            this.isDragging = false;
+            const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+            if (canvasElement) {
+                canvasElement.style.cursor = 'default';
+            }
+        }
+    }
+
+    private handleMouseMove(e: MouseEvent): void {
+        if (this.isDragging) {
+            const deltaX: number = this.mouseX - this.lastMouseX;
+            const deltaY: number = this.mouseY - this.lastMouseY;
+            
+            this.yaw += deltaX * this.rotationSpeed;
+            this.pitch += deltaY * this.rotationSpeed;
+            
+            this.yaw = ((this.yaw % 2048) + 2048) % 2048;
+            this.pitch = ((this.pitch % 2048) + 2048) % 2048;
+            
+            this.lastMouseX = this.mouseX;
+            this.lastMouseY = this.mouseY;
+        }
+    }
+
+    displayFaceInfo(model: any, faceIndex: number): void {
+        const faceInfoPanel = document.getElementById('face-info') as HTMLElement | null;
+        const faceDetails = document.getElementById('face-details') as HTMLElement | null;
+        
+        if (!faceInfoPanel || !faceDetails || !model) {
+            return;
+        }
+        
+        let html: string = '';
+        
+        html += `<div class="face-detail"><strong>Face Index:</strong> ${faceIndex}</div>`;
+        
+        if (model.faceVertexA && model.faceVertexB && model.faceVertexC) {
+            const vertexA: number = model.faceVertexA[faceIndex];
+            const vertexB: number = model.faceVertexB[faceIndex];
+            const vertexC: number = model.faceVertexC[faceIndex];
+            html += `<div class="face-detail"><strong>Vertices:</strong> ${vertexA}, ${vertexB}, ${vertexC}</div>`;
+        }
+        
+        let colorOrTextureInfo: string = "";
+        const textureId: number | undefined = model.faceTextures?.[faceIndex];
+        if (textureId !== undefined && textureId !== -1) {
+            const textureDisplayID: string = `ID: ${textureId}`;
+            colorOrTextureInfo = `<div class="face-detail"><strong>Texture:</strong> ${textureDisplayID}</div>`;
+        } else {
+            let colorValue: number | undefined = undefined;
+            let colorHex: string = "#ffffff";
+            if (model.originalFaceColor && model.originalFaceColor[faceIndex] !== undefined) {
+                colorValue = model.originalFaceColor[faceIndex];
+            }
+            if (colorValue !== undefined && Pix3D.hslPal && Pix3D.hslPal[colorValue] !== undefined) {
+                const paletteColor: number = Pix3D.hslPal[colorValue];
+                const colorRgb = {
+                    r: (paletteColor >> 16) & 0xff,
+                    g: (paletteColor >> 8) & 0xff,
+                    b: paletteColor & 0xff,
+                };
+                colorHex = `#${colorRgb.r.toString(16).padStart(2, "0")}${colorRgb.g.toString(16).padStart(2, "0")}${colorRgb.b.toString(16).padStart(2, "0")}`;
+                const faceColorForHsl: number | undefined = model.originalFaceColor?.[faceIndex];
+                if (faceColorForHsl !== undefined) {
+                    colorOrTextureInfo = `
+                        <div class="face-detail">
+                            <strong>Source Color For Recol:</strong> ${ColorConversion.reverseHsl(faceColorForHsl)[0]}
+                            <span class="color-swatch" style="background-color: ${colorHex}"></span>
+                        </div>`;
+                } else {
+                    colorOrTextureInfo = `<div class="face-detail"><strong>Source Color For Recol:</strong> N/A (Invalid index for HSL)</div>`;
+                }
+            } else {
+                colorOrTextureInfo = `<div class="face-detail"><strong>Source Color For Recol:</strong> N/A</div>`;
+            }
+        }
+        
+        html += colorOrTextureInfo;
+        
+        if (model.facePriority && model.facePriority[faceIndex] !== undefined) {
+            html += `<div class="face-detail"><strong>Priority:</strong> ${model.facePriority[faceIndex]}</div>`;
+        }
+        
+        if (model.faceAlpha && model.faceAlpha[faceIndex] !== undefined) {
+            html += `<div class="face-detail"><strong>Alpha:</strong> ${model.faceAlpha[faceIndex]}</div>`;
+        }
+        
+        if (model.faceLabel && model.faceLabel[faceIndex] !== undefined) {
+            html += `<div class="face-detail"><strong>Label:</strong> ${model.faceLabel[faceIndex]}</div>`;
+        }
+        
+        faceDetails.innerHTML = html;
+        faceInfoPanel.style.display = 'block';
+    }
+
+    hideFaceInfo(): void {
+        const faceInfoPanel = document.getElementById('face-info') as HTMLElement | null;
+        if (faceInfoPanel) {
+            faceInfoPanel.style.display = 'none';
+        }
+    }
+
+    handleMovement(): void {
+        let moved: boolean = false;
+        
+        if (this.actionKey[87] || this.actionKey[119]) {
+            this.eyeY -= this.moveSpeed;
+            moved = true;
+        }
+        
+        if (this.actionKey[83] || this.actionKey[115]) {
+            this.eyeY += this.moveSpeed;
+            moved = true;
+        }
+        
+        if (this.actionKey[65] || this.actionKey[97]) {
+            this.eyeX -= this.moveSpeed;
+            moved = true;
+        }
+        
+        if (this.actionKey[68] || this.actionKey[100]) {
+            this.eyeX += this.moveSpeed;
+            moved = true;
+        }
+        
+        if (this.actionKey[81] || this.actionKey[113]) {
+            this.eyeZ -= this.moveSpeed;
+            moved = true;
+        }
+        
+        if (this.actionKey[69] || this.actionKey[101]) {
+            this.eyeZ += this.moveSpeed;
+            moved = true;
+        }
     }
 
     async showProgress(progress: number, message: string): Promise<void> {
@@ -2595,6 +2774,11 @@ export class JagEd extends GameShell {
     }
 
     showModel(modelId: string) {
+        this.eyeX = 0;
+        this.eyeY = 0;
+        this.eyeZ = -420;
+        this.yaw = 0;
+        this.pitch = 0;
         this.selectedModel = modelId;
     }
 

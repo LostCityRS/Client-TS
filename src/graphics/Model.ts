@@ -1369,6 +1369,7 @@ export default class Model extends DoublyLinkable {
         this.originalVertexZ = new Int32Array(this.vertexZ);
         this.faceTextures = new Int32Array(this.faceCount);
         this.faceTextures.fill(-1);
+        this.initializeFaceTextures();
         this.priorityVal = type.priorityVal;
         this.currentScaleX = 128;
         this.currentScaleY = 128;
@@ -1376,6 +1377,19 @@ export default class Model extends DoublyLinkable {
         this.baseScaleX = 128;
         this.baseScaleY = 128;
         this.baseScaleZ = 128;
+    }
+
+    private initializeFaceTextures(): void {
+        if (!this.faceInfo || !this.faceColor) {
+            return;
+        }
+
+        for (let f = 0; f < this.faceCount; f++) {
+            const type = this.faceInfo[f] & 0x3;
+            if (type === 2 || type === 3) {
+                this.faceTextures[f] = this.faceColor[f];
+            }
+        }
     }
 
     calculateBoundsCylinder(): void {
@@ -3428,7 +3442,7 @@ export default class Model extends DoublyLinkable {
             dz = z;
 
             vertexX[v] = x;
-            vertexY[v] = y;
+            vertexY[v] = -y;
             vertexZ[v] = z;
         }
     }
