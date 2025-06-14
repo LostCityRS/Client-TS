@@ -368,36 +368,28 @@ export class JagEd extends GameShell {
     }
 
     handleMovement(): void {
-        let moved: boolean = false;
-        
         if (this.actionKey[87] || this.actionKey[119]) {
             this.eyeY -= this.moveSpeed;
-            moved = true;
         }
         
         if (this.actionKey[83] || this.actionKey[115]) {
             this.eyeY += this.moveSpeed;
-            moved = true;
         }
         
         if (this.actionKey[65] || this.actionKey[97]) {
             this.eyeX -= this.moveSpeed;
-            moved = true;
         }
         
         if (this.actionKey[68] || this.actionKey[100]) {
             this.eyeX += this.moveSpeed;
-            moved = true;
         }
         
         if (this.actionKey[81] || this.actionKey[113]) {
             this.eyeZ -= this.moveSpeed;
-            moved = true;
         }
         
         if (this.actionKey[69] || this.actionKey[101]) {
             this.eyeZ += this.moveSpeed;
-            moved = true;
         }
     }
 
