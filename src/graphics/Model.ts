@@ -146,6 +146,11 @@ export default class Model extends DoublyLinkable {
     static pickedCount: number = 0;
     static picked: Int32Array = new Int32Array(1000);
     static checkHoverFace: boolean = false;
+    public wireFrame: boolean = false;
+    public isHighlightedFace?: (faceIndex: number) => boolean;
+    private originalFaceColorA?: Int32Array;
+    private originalFaceColorB?: Int32Array;
+    private originalFaceColorC?: Int32Array;
 
     static unpack(models: Jagfile): void {
         try {
@@ -1311,8 +1316,8 @@ export default class Model extends DoublyLinkable {
 
     faceTextures: Int32Array;
 
-    private hadOriginalFaceLabels: boolean = false;
-    private hadOriginalVertexLabels: boolean = false;
+    public hadOriginalFaceLabels: boolean = false;
+    public hadOriginalVertexLabels: boolean = false;
     private hadOriginalFacePriorities: boolean = false;
     private hadOriginalFaceAlphas: boolean = false;
     private hadOriginalFaceInfos: boolean = false;
@@ -1325,6 +1330,8 @@ export default class Model extends DoublyLinkable {
     private baseScaleX: number = 128;
     private baseScaleY: number = 128;
     private baseScaleZ: number = 128;
+    faceLabelForExport: Int32Array | undefined;
+    vertexLabelForExport: Int32Array | undefined;
 
     constructor(type: ModelType) {
         super();
@@ -1377,6 +1384,7 @@ export default class Model extends DoublyLinkable {
         this.baseScaleX = 128;
         this.baseScaleY = 128;
         this.baseScaleZ = 128;
+        this.wireFrame = false;
     }
 
     private initializeFaceTextures(): void {
@@ -1496,6 +1504,41 @@ export default class Model extends DoublyLinkable {
                 faces[labelFaceCount[label]++] = face++;
             }
             this.faceLabel = null;
+        }
+    }
+
+    public applyFaceHighlighting(): void {
+        if (!this.isHighlightedFace) return;
+        
+        if (!this.originalFaceColorA && this.faceColorA) {
+            this.originalFaceColorA = new Int32Array(this.faceColorA);
+        }
+        if (!this.originalFaceColorB && this.faceColorB) {
+            this.originalFaceColorB = new Int32Array(this.faceColorB);
+        }
+        if (!this.originalFaceColorC && this.faceColorC) {
+            this.originalFaceColorC = new Int32Array(this.faceColorC);
+        }
+
+        for (let f = 0; f < this.faceCount; f++) {
+            if (this.isHighlightedFace(f)) {
+                const highlightColorIndex: number = 573;
+                if (this.faceColorA) this.faceColorA[f] = highlightColorIndex;
+                if (this.faceColorB) this.faceColorB[f] = highlightColorIndex;
+                if (this.faceColorC) this.faceColorC[f] = highlightColorIndex;
+            }
+        }
+    }
+
+    public restoreFaceColors(): void {
+        if (this.originalFaceColorA && this.faceColorA) {
+            this.faceColorA.set(this.originalFaceColorA);
+        }
+        if (this.originalFaceColorB && this.faceColorB) {
+            this.faceColorB.set(this.originalFaceColorB);
+        }
+        if (this.originalFaceColorC && this.faceColorC) {
+            this.faceColorC.set(this.originalFaceColorC);
         }
     }
 
@@ -1802,7 +1845,7 @@ export default class Model extends DoublyLinkable {
             }
         }
 
-        this.faceColor = null;
+        //this.faceColor = null;
     }
 
     // todo: better name, Java relies on overloads
@@ -1995,7 +2038,7 @@ export default class Model extends DoublyLinkable {
                 clipped = true;
             }
 
-            if ((clipped || this.texturedFaceCount > 0) && Model.vertexViewSpaceX && Model.vertexViewSpaceY && Model.vertexViewSpaceZ) {
+            if (Model.vertexViewSpaceX && Model.vertexViewSpaceY && Model.vertexViewSpaceZ) {
                 Model.vertexViewSpaceX[v] = x;
                 Model.vertexViewSpaceY[v] = y;
                 Model.vertexViewSpaceZ[v] = z;
@@ -2004,7 +2047,7 @@ export default class Model extends DoublyLinkable {
 
         try {
             // try catch for example a model being drawn from 3d can crash like at baxtorian falls
-            this.draw2(clipped, picking, typecode);
+            this.draw2(clipped, picking, typecode, this.wireFrame);
         } catch (err) {
             // console.error(err);
         }
@@ -3224,21 +3267,25 @@ export default class Model extends DoublyLinkable {
         }
 
         if (this.hadOriginalFaceLabels) {
-            let actualFaceLabels: Uint8Array;
-            if (this.faceLabel) {
-                actualFaceLabels = Uint8Array.from(this.faceLabel);
+            let actualFaceLabels = new Uint8Array(this.faceCount).fill(0);
+
+            if ((this as any).faceLabelForExport instanceof Int32Array) {
+                const src = (this as any).faceLabelForExport as Int32Array;
+                console.log("Using faceLabelForExport in export:", src.slice(0, 20));
+                for (let i = 0; i < this.faceCount && i < src.length; i++) {
+                    actualFaceLabels[i] = src[i];
+                }
             } else if (this.labelFaces) {
-                actualFaceLabels = new Uint8Array(this.faceCount).fill(0);
                 for (let l = 0; l < this.labelFaces.length; l++) {
                     const indices = this.labelFaces[l];
                     if (indices) {
                         for (let i = 0; i < indices.length; i++) {
-                            if (indices[i] < this.faceCount) actualFaceLabels[indices[i]] = l;
+                            if (indices[i] < this.faceCount) {
+                                actualFaceLabels[indices[i]] = l;
+                            }
                         }
                     }
                 }
-            } else {
-                actualFaceLabels = new Uint8Array(this.faceCount).fill(0);
             }
             dataBlocks.push(actualFaceLabels);
         }
@@ -3250,25 +3297,27 @@ export default class Model extends DoublyLinkable {
             dataBlocks.push(faceInfosData);
         }
 
-        if (this.hadOriginalVertexLabels) {
-            let actualVertexLabels: Uint8Array;
-            if (this.vertexLabel) {
-                actualVertexLabels = Uint8Array.from(this.vertexLabel);
-            } else if (this.labelVertices) {
-                actualVertexLabels = new Uint8Array(this.vertexCount).fill(0);
-                for (let l = 0; l < this.labelVertices.length; l++) {
-                    const indices = this.labelVertices[l];
-                    if (indices) {
-                        for (let i = 0; i < indices.length; i++) {
-                            if (indices[i] < this.vertexCount)
-                                actualVertexLabels[indices[i]] = l;
+    if (this.hadOriginalVertexLabels) {
+        let actualVertexLabels = new Uint8Array(this.vertexCount).fill(0);
+
+        if ((this as any).vertexLabelForExport instanceof Int32Array) {
+            const src = (this as any).vertexLabelForExport as Int32Array;
+            for (let i = 0; i < this.vertexCount && i < src.length; i++) {
+                actualVertexLabels[i] = src[i];
+            }
+        } else if (this.labelVertices) {
+            for (let l = 0; l < this.labelVertices.length; l++) {
+                const indices = this.labelVertices[l];
+                if (indices) {
+                    for (let i = 0; i < indices.length; i++) {
+                        if (indices[i] < this.vertexCount) {
+                            actualVertexLabels[indices[i]] = l;
                         }
                     }
                 }
-            } else {
-                actualVertexLabels = new Uint8Array(this.vertexCount).fill(0);
             }
-            dataBlocks.push(actualVertexLabels);
+        }
+        dataBlocks.push(actualVertexLabels);
         }
 
         if (this.hadOriginalFaceAlphas) {
@@ -3664,6 +3713,7 @@ export default class Model extends DoublyLinkable {
         newModel.baseScaleX = this.baseScaleX;
         newModel.baseScaleY = this.baseScaleY;
         newModel.baseScaleZ = this.baseScaleZ;
+        newModel.wireFrame = this.wireFrame;
 
         if (this.partMapping) {
             newModel.partMapping = {

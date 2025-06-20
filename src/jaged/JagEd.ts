@@ -129,6 +129,8 @@ export class JagEd extends GameShell {
     modelSearchInput: HTMLInputElement;
     seqSearchInput: HTMLInputElement;
     exportModelButton: HTMLButtonElement | null;
+    changeFaceLabels: HTMLInputElement | null;
+    changeVertexLabels: HTMLInputElement | null;
 
     sceneDelta: number = 0;
     textureBuffer: Int8Array = new Int8Array(16384);
@@ -146,6 +148,18 @@ export class JagEd extends GameShell {
     isDragging: boolean = false;
     lastMouseX: number = 0;
     lastMouseY: number = 0;
+
+    private isVertexEditMode: boolean = false;
+    private isDraggingVertex: boolean = false;
+    private selectedVertex: number = -1;
+    private vertexDragStartViewZ: number = 0;
+    private vertexDragStartModelPos: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+    private vertexDragStartScreenPos: { x: number; y: number } = { x: 0, y: 0 };
+
+    private highlightedFaces: Set<number> = new Set();
+    private highlightedVertices: Set<number> = new Set();
+
+    private showVertexNumbers: boolean = false;
 
     constructor() {
         super(true);
@@ -174,6 +188,8 @@ export class JagEd extends GameShell {
         };
         this.currentSelectedAnimFrameInstance = null;
         this.loopSequenceCheckbox = null;
+        this.changeFaceLabels = null;
+        this.changeVertexLabels = null;
         this.modelSearchInput = document.getElementById(
             "model-search"
         ) as HTMLInputElement;
@@ -199,6 +215,195 @@ export class JagEd extends GameShell {
         Pix3D.lowMemory = false;
 
         this.run();
+    }
+
+    private toggleVertexEditMode(): void {
+        const editToggle = document.getElementById("edit-toggle") as HTMLButtonElement;
+        if (!editToggle) return;
+        
+        this.isVertexEditMode = !this.isVertexEditMode;
+        
+        if (this.isVertexEditMode) {
+            editToggle.textContent = "Disable Vertex Editing";
+            editToggle.classList.add("active");
+            this.enableVertexEditMode();
+        } else {
+            editToggle.textContent = "Enable Vertex Editing";
+            editToggle.classList.remove("active");
+            this.disableVertexEditMode();
+        }
+        
+        this.updateVertexLabelUIState();
+    }
+
+    private enableVertexEditMode(): void {
+        const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+        if (canvasElement) {
+            canvasElement.classList.add('vertex-edit');
+        }
+    }
+
+    private disableVertexEditMode(): void {
+        this.isDraggingVertex = false;
+        this.selectedVertex = -1;
+        const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+        if (canvasElement) {
+            canvasElement.classList.remove('vertex-edit');
+        }
+        this.clearVertexHighlights();
+        document.querySelectorAll("#vertex-label-list .label-item").forEach((el) => el.classList.remove("selected", "highlighted-vertex"));
+        document.querySelectorAll("#vertex-label-panel .label-control-btn").forEach((el) => el.classList.remove("active"));
+    }
+
+    private pickVertex(mouseX: number, mouseY: number): number {
+        if (!this.builtModel || !Model.vertexScreenX || !Model.vertexScreenY) {
+            return -1;
+        }
+        
+        const pickRadius = 8;
+        let closestVertex = -1;
+        let closestDistance = pickRadius * pickRadius;
+        
+        for (let v = 0; v < this.builtModel.vertexCount; v++) {
+            const screenX = Model.vertexScreenX[v];
+            const screenY = Model.vertexScreenY[v];
+            
+            if (screenX === -5000) continue;
+            
+            const dx = mouseX - screenX;
+            const dy = mouseY - screenY;
+            const distanceSqr = dx * dx + dy * dy;
+            
+            if (distanceSqr < closestDistance) {
+                closestDistance = distanceSqr;
+                closestVertex = v;
+            }
+        }
+        
+        return closestVertex;
+    }
+
+    dragVertex(mouseX: number, mouseY: number) {
+        if (this.selectedVertex < 0 || !this.builtModel) {
+            return;
+        }
+
+        if (this.vertexDragStartViewZ < 50) {
+            return;
+        }
+
+        const startScreenX = this.vertexDragStartScreenPos.x;
+        const startScreenY = this.vertexDragStartScreenPos.y;
+        
+        const screenDeltaX = mouseX - startScreenX;
+        const screenDeltaY = mouseY - startScreenY;
+        const deltaViewX = (screenDeltaX * this.vertexDragStartViewZ) / 512.0;
+        const deltaViewY = (screenDeltaY * this.vertexDragStartViewZ) / 512.0;
+
+        const deltaModel = this.viewVectorToModelVector(deltaViewX, deltaViewY, 0);
+
+        const newModelX = Math.round(this.vertexDragStartModelPos.x + deltaModel.x);
+        const newModelY = Math.round(this.vertexDragStartModelPos.y + deltaModel.y);
+        const newModelZ = Math.round(this.vertexDragStartModelPos.z + deltaModel.z);
+
+        if (newModelX !== this.builtModel.vertexX[this.selectedVertex] ||
+            newModelY !== this.builtModel.vertexY[this.selectedVertex] ||
+            newModelZ !== this.builtModel.vertexZ[this.selectedVertex]) {
+            this.builtModel.vertexX[this.selectedVertex] = newModelX;
+            this.builtModel.vertexY[this.selectedVertex] = newModelY;
+            this.builtModel.vertexZ[this.selectedVertex] = newModelZ;
+            this.sceneDelta++;
+        }
+    }
+
+    viewVectorToModelVector(vecX: number, vecY: number, vecZ: number): {x: number, y: number, z: number} {
+        const f_sinEyePitch = Pix3D.sin[this.pitch] / 65536;
+        const f_cosEyePitch = Pix3D.cos[this.pitch] / 65536;
+        const f_sinEyeYaw = Pix3D.sin[this.yaw] / 65536;
+        const f_cosEyeYaw = Pix3D.cos[this.yaw] / 65536;
+
+        const intermediateY = vecY * f_cosEyePitch + vecZ * f_sinEyePitch;
+        const intermediateZ = vecZ * f_cosEyePitch - vecY * f_sinEyePitch;
+
+        const modelX = vecX * f_cosEyeYaw - intermediateZ * f_sinEyeYaw;
+        const modelY = intermediateY;
+        const modelZ = vecX * f_sinEyeYaw + intermediateZ * f_cosEyeYaw;
+
+        return { x: modelX, y: modelY, z: modelZ };
+    }
+
+    private drawVertexHighlights(): void {
+        if (!this.builtModel || !Model.vertexScreenX || !Model.vertexScreenY) {
+            return;
+        }
+        
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (this.isVertexEditMode) {
+            if (this.highlightedVertices.size > 0) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                this.highlightedVertices.forEach(vertexIndex => {
+                    if (vertexIndex < this.builtModel!.vertexCount) {
+                        const screenX = Model.vertexScreenX![vertexIndex];
+                        const screenY = Model.vertexScreenY![vertexIndex];
+                        
+                        if (screenX > -5000 && screenY > -5000) {
+                            ctx.beginPath();
+                            ctx.arc(screenX, screenY, 3, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                    }
+                });
+            } else {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                for (let v = 0; v < this.builtModel.vertexCount; v++) {
+                    const screenX = Model.vertexScreenX[v];
+                    const screenY = Model.vertexScreenY[v];
+                    
+                    if (screenX > -5000 && screenY > -5000) {
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, 3, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+        if (this.highlightedVertices.size > 0) {
+            ctx.fillStyle = 'rgba(0, 204, 102, 0.9)';
+            this.highlightedVertices.forEach(vertexIndex => {
+                if (this.builtModel && Model.vertexScreenX && Model.vertexScreenY && vertexIndex < this.builtModel.vertexCount) {
+                    const screenX = Model.vertexScreenX[vertexIndex];
+                    const screenY = Model.vertexScreenY[vertexIndex];
+                    
+                    if (screenX > -5000 && screenY > -5000) {
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                }
+            });
+        }
+        if (this.showVertexNumbers) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.lineWidth = 2;
+            
+            for (let v = 0; v < this.builtModel.vertexCount; v++) {
+                const screenX = Model.vertexScreenX[v];
+                const screenY = Model.vertexScreenY[v];
+                
+                if (screenX > -5000 && screenY > -5000) {
+                    const text = v.toString();
+                    const textY = screenY - 10;
+                    ctx.strokeText(text, screenX, textY);
+                    ctx.fillText(text, screenX, textY);
+                }
+            }
+        }
     }
 
     private setupMouseHandlers(): void {
@@ -230,20 +435,24 @@ export class JagEd extends GameShell {
         Pix2D.clear(0x3F3F3F);
         this.updateTextures(Pix3D.cycle);
 
-    if (this.builtModel) {
-        const sinEyePitch = Pix3D.sin[this.pitch];
-        const cosEyePitch = Pix3D.cos[this.pitch];
-        const sinEyeYaw = Pix3D.sin[this.yaw];
-        const cosEyeYaw = Pix3D.cos[this.yaw];
+        if (this.builtModel) {
+            const sinEyePitch = Pix3D.sin[this.pitch];
+            const cosEyePitch = Pix3D.cos[this.pitch];
+            const sinEyeYaw = Pix3D.sin[this.yaw];
+            const cosEyeYaw = Pix3D.cos[this.yaw];
 
-        const relativeX = -this.eyeX;
-        const relativeY = -this.eyeY;
-        const relativeZ = -this.eyeZ;
-        
-        this.builtModel.draw(0, sinEyePitch, cosEyePitch, sinEyeYaw, cosEyeYaw, relativeX, relativeY, relativeZ, 0);
-    }
+            const relativeX = -this.eyeX;
+            const relativeY = -this.eyeY;
+            const relativeZ = -this.eyeZ;
+            
+            this.builtModel.draw(0, sinEyePitch, cosEyePitch, sinEyeYaw, cosEyeYaw, relativeX, relativeY, relativeZ, 0);
+        }
 
         this.drawArea?.draw(0, 0);
+        
+        if (this.isVertexEditMode || this.showVertexNumbers || this.highlightedVertices.size > 0) {
+            this.drawVertexHighlights();
+        }
     }
 
     async refresh(): Promise<void> {
@@ -254,8 +463,39 @@ export class JagEd extends GameShell {
         this.handleMovement();
     }
 
-    private handleMouseDown(e: MouseEvent): void {
-        if (e.button === 0) {
+    handleMouseDown(e: MouseEvent): void {
+        const canvasElement = e.target as HTMLCanvasElement;
+        const rect = canvasElement.getBoundingClientRect();
+        const scaleX = canvasElement.width / rect.width;
+        const scaleY = canvasElement.height / rect.height;
+        const mouseX = (e.clientX - rect.left) * scaleX | 0;
+        const mouseY = (e.clientY - rect.top) * scaleY | 0;
+        
+        if (this.isVertexEditMode && e.button === 0) {
+            const pickedVertex = this.pickVertex(mouseX, mouseY);
+            if (pickedVertex >= 0) {
+                this.selectedVertex = pickedVertex;
+                this.isDraggingVertex = true;
+                
+                if (Model.vertexViewSpaceZ) {
+                    this.vertexDragStartViewZ = Model.vertexViewSpaceZ[pickedVertex];
+                }
+                
+                if (this.builtModel) {
+                    this.vertexDragStartModelPos.x = this.builtModel.vertexX[pickedVertex];
+                    this.vertexDragStartModelPos.y = this.builtModel.vertexY[pickedVertex];
+                    this.vertexDragStartModelPos.z = this.builtModel.vertexZ[pickedVertex];
+                }
+                
+                if (Model.vertexScreenX && Model.vertexScreenY) {
+                    this.vertexDragStartScreenPos.x = Model.vertexScreenX[pickedVertex];
+                    this.vertexDragStartScreenPos.y = Model.vertexScreenY[pickedVertex];
+                }
+                
+                e.preventDefault();
+                return;
+            }
+        } else if (e.button === 0) {
             if (this.builtModel && this.builtModel.pickedFace >= 0) {
                 this.displayFaceInfo(this.builtModel, this.builtModel.pickedFace);
             } else {
@@ -263,16 +503,25 @@ export class JagEd extends GameShell {
             }
         } else if (e.button === 2) {
             this.isDragging = true;
-            this.lastMouseX = this.mouseX;
-            this.lastMouseY = this.mouseY;
-            const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
-            if (canvasElement) {
-                canvasElement.style.cursor = 'grabbing';
+            this.lastMouseX = mouseX;
+            this.lastMouseY = mouseY;
+            const canvasElement2 = document.getElementById("canvas");
+            if (canvasElement2) {
+                canvasElement2.style.cursor = "grabbing";
             }
         }
     }
 
     private handleMouseUp(e: MouseEvent): void {
+        if (this.isVertexEditMode && e.button === 0 && this.isDraggingVertex && !this.isSequenceRunning()) {
+            this.isDraggingVertex = false;
+            this.selectedVertex = -1;
+            e.preventDefault();
+            if (this.builtModel) {
+                this.builtModel.saveCurrentVerticesAsOriginal();
+            }
+            return;
+        }
         if (e.button === 2) {
             this.isDragging = false;
             const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
@@ -281,20 +530,29 @@ export class JagEd extends GameShell {
             }
         }
     }
-
     private handleMouseMove(e: MouseEvent): void {
+        const canvasElement = e.target as HTMLCanvasElement;
+        const rect = canvasElement.getBoundingClientRect();
+        const scaleX = canvasElement.width / rect.width;
+        const scaleY = canvasElement.height / rect.height;
+        const mouseX = (e.clientX - rect.left) * scaleX | 0;
+        const mouseY = (e.clientY - rect.top) * scaleY | 0;
+        
+        if (this.isVertexEditMode && this.isDraggingVertex) {
+            this.dragVertex(mouseX, mouseY);
+            e.preventDefault();
+            return;
+        }
+
         if (this.isDragging) {
-            const deltaX: number = this.mouseX - this.lastMouseX;
-            const deltaY: number = this.mouseY - this.lastMouseY;
-            
+            const deltaX: number = mouseX - this.lastMouseX;
+            const deltaY: number = mouseY - this.lastMouseY;
             this.yaw += deltaX * this.rotationSpeed;
             this.pitch += deltaY * this.rotationSpeed;
-            
-            this.yaw = ((this.yaw % 2048) + 2048) % 2048;
-            this.pitch = ((this.pitch % 2048) + 2048) % 2048;
-            
-            this.lastMouseX = this.mouseX;
-            this.lastMouseY = this.mouseY;
+            this.yaw = (this.yaw % 2048 + 2048) % 2048;
+            this.pitch = (this.pitch % 2048 + 2048) % 2048;
+            this.lastMouseX = mouseX;
+            this.lastMouseY = mouseY;
         }
     }
 
@@ -551,13 +809,6 @@ export class JagEd extends GameShell {
             if (clearDetailsBtn.disabled) return;
             this.hideNewTransformForm();
             this.clearTransformEditor();
-
-            // const renderer = this.viewer.getRenderer();
-            // if (renderer) {
-            //     renderer.clearSpecificVertexHighlights();
-            //     renderer.clearSpecificFaceHighlights();
-            // }
-
             this.currentSelectedAnimFrameInstance = null;
             this.updateExportFrameButtonState();
             clearDetailsBtn.disabled = true;
@@ -586,31 +837,35 @@ export class JagEd extends GameShell {
     }
 
     clearTransformEditor() {
-        if (this.activeTransformEditor.element) {
-            this.activeTransformEditor.element.remove();
+        if (this.activeTransformEditor.element && this.activeTransformEditor.element.parentNode) {
+            this.activeTransformEditor.element.parentNode.removeChild(this.activeTransformEditor.element);
         }
-        this.activeTransformEditor = {
-            element: null,
-            animFrame: null,
-            transformIndex: -1,
-            parentElement: null,
-        };
+        
+        if (this.activeTransformEditor.parentElement) {
+            this.activeTransformEditor.parentElement.style.backgroundColor = "#2a2a2a";
+        }
+        
+        this.activeTransformEditor.element = null;
+        this.activeTransformEditor.animFrame = null;
+        this.activeTransformEditor.transformIndex = -1;
+        this.activeTransformEditor.parentElement = null;
 
-        const deleteTransformBtn = document.getElementById(
-            "delete-transform-btn"
-        ) as HTMLButtonElement;
-        deleteTransformBtn.disabled = true;
+        const deleteTransformBtn = document.getElementById("delete-transform-btn") as HTMLButtonElement;
+        if (deleteTransformBtn) deleteTransformBtn.disabled = true;
+
+        this.clearTransformHighlights();
     }
 
-    showTransformEditor(
-        animFrame: any,
-        transformIndex: number,
-        parentElement: HTMLElement
-    ) {
+    showTransformEditor(animFrame: any, transformIndex: number, parentElement: HTMLElement) {
         this.clearTransformEditor();
-        const deleteTransformBtn = document.getElementById(
-            "delete-transform-btn"
-        ) as HTMLButtonElement;
+        
+        document.querySelectorAll('.transform-editor').forEach(editor => {
+            if (editor.parentNode) {
+                editor.parentNode.removeChild(editor);
+            }
+        });
+        
+        const deleteTransformBtn = document.getElementById("delete-transform-btn") as HTMLButtonElement;
         const editorDiv = document.createElement("div");
         editorDiv.className = "transform-editor";
 
@@ -630,104 +885,79 @@ export class JagEd extends GameShell {
             transformTypeName = this.getTransformTypeName(transformType);
         }
 
-        editorDiv.innerHTML = `<h4>Edit Transform ${transformIndex + 1
-            } (${transformTypeName})</h4>`;
+        editorDiv.innerHTML = `<h4>Edit Transform ${transformIndex + 1} (${transformTypeName})</h4>`;
 
         const currentValues = {
-            x:
-                animFrame.x && transformIndex < animFrame.x.length
-                    ? animFrame.x[transformIndex]
-                    : 0,
-            y:
-                animFrame.y && transformIndex < animFrame.y.length
-                    ? animFrame.y[transformIndex]
-                    : 0,
-            z:
-                animFrame.z && transformIndex < animFrame.z.length
-                    ? animFrame.z[transformIndex]
-                    : 0,
+            x: animFrame.x && transformIndex < animFrame.x.length ? animFrame.x[transformIndex] : 0,
+            y: animFrame.y && transformIndex < animFrame.y.length ? animFrame.y[transformIndex] : 0,
+            z: animFrame.z && transformIndex < animFrame.z.length ? animFrame.z[transformIndex] : 0,
         };
 
-        let axesToCreateInputsFor = ["x", "y", "z"];
-        if (transformType === 5) {
-            axesToCreateInputsFor = ["x"];
-        }
+        const useSliders = transformType === 2 || transformType === 5;
+        const maxValue = useSliders ? 255 : undefined;
 
-        axesToCreateInputsFor.forEach((axis) => {
+        ["x", "y", "z"].forEach((axis) => {
             const axisDiv = document.createElement("div");
             const label = document.createElement("label");
-            label.htmlFor = `transform-edit-${axis}-${transformIndex}`;
+            label.textContent = `${axis.toUpperCase()}:`;
+            
+            if (useSliders) {
+                axisDiv.style.display = "flex";
+                axisDiv.style.alignItems = "center";
+                axisDiv.style.marginBottom = "6px";
+                
+                const sliderElement = document.createElement("input");
+                sliderElement.type = "range";
+                sliderElement.className = "transform-slider";
+                sliderElement.min = "0";
+                sliderElement.max = maxValue!.toString();
+                sliderElement.value = Math.max(0, Math.min(maxValue!, currentValues[axis as keyof typeof currentValues])).toString();
+                
+                const valueDisplay = document.createElement("span");
+                valueDisplay.className = "slider-value-display";
+                valueDisplay.textContent = sliderElement.value;
 
-            if (transformType === 5 && axis === "x") {
-                label.textContent = `Alpha:`;
-            } else {
-                label.textContent = `${axis.toUpperCase()}:`;
-            }
-
-            let inputElement: HTMLInputElement;
-            let valueDisplaySpan: HTMLSpanElement | undefined;
-
-            if (transformType === 2 || (transformType === 5 && axis === "x")) {
-                inputElement = document.createElement("input");
-                inputElement.type = "range";
-                inputElement.min = "0";
-                inputElement.max = "255";
-                inputElement.className = "transform-slider";
-
-                valueDisplaySpan = document.createElement("span");
-                valueDisplaySpan.className = "slider-value-display";
-                valueDisplaySpan.textContent =
-                    currentValues[axis as keyof typeof currentValues].toString();
-
-                inputElement.id = `transform-edit-${axis}-${transformIndex}`;
-                inputElement.dataset.axis = axis;
-                inputElement.value =
-                    currentValues[axis as keyof typeof currentValues].toString();
-
-                inputElement.addEventListener("input", (event) => {
-                    const newValue = parseInt(
-                        (event.target as HTMLInputElement).value,
-                        10
-                    );
+                const updateValue = () => {
+                    const newValue = parseInt(sliderElement.value, 10);
+                    valueDisplay.textContent = newValue.toString();
+                    
                     if (!isNaN(newValue)) {
                         if (animFrame[axis] && transformIndex < animFrame[axis].length) {
                             animFrame[axis][transformIndex] = newValue;
+                            animFrame.isModified = true;
                         } else {
-                            console.warn(
-                                `Attempted to update transform out of bounds: axis ${axis}, index ${transformIndex}`
-                            );
+                            console.warn(`Attempted to update transform out of bounds: axis ${axis}, index ${transformIndex}`);
                         }
-                        valueDisplaySpan!.textContent = newValue.toString();
                         this.refreshActiveAnimFrameDisplay();
                     }
-                });
+                };
+                
+                sliderElement.addEventListener("input", updateValue);
+                sliderElement.addEventListener("change", updateValue);
+                
+                axisDiv.appendChild(label);
+                axisDiv.appendChild(sliderElement);
+                axisDiv.appendChild(valueDisplay);
             } else {
-                inputElement = document.createElement("input");
+                const inputElement = document.createElement("input");
                 inputElement.type = "number";
-                inputElement.id = `transform-edit-${axis}-${transformIndex}`;
-                inputElement.dataset.axis = axis;
-                inputElement.value =
-                    currentValues[axis as keyof typeof currentValues].toString();
-
-                inputElement.addEventListener("input", (event) => {
-                    const newValue = parseFloat((event.target as HTMLInputElement).value);
+                inputElement.value = currentValues[axis as keyof typeof currentValues].toString();
+                
+                inputElement.addEventListener("input", () => {
+                    const newValue = parseInt(inputElement.value, 10);
                     if (!isNaN(newValue)) {
                         if (animFrame[axis] && transformIndex < animFrame[axis].length) {
                             animFrame[axis][transformIndex] = newValue;
+                            animFrame.isModified = true;
                         } else {
-                            console.warn(
-                                `Attempted to update transform out of bounds: axis ${axis}, index ${transformIndex}`
-                            );
+                            console.warn(`Attempted to update transform out of bounds: axis ${axis}, index ${transformIndex}`);
                         }
                         this.refreshActiveAnimFrameDisplay();
                     }
                 });
-            }
 
-            axisDiv.appendChild(label);
-            axisDiv.appendChild(inputElement);
-            if (valueDisplaySpan) {
-                axisDiv.appendChild(valueDisplaySpan);
+                axisDiv.appendChild(label);
+                axisDiv.appendChild(inputElement);
             }
             editorDiv.appendChild(axisDiv);
         });
@@ -739,10 +969,7 @@ export class JagEd extends GameShell {
             parentElement: parentElement,
         };
 
-        parentElement.parentNode!.insertBefore(
-            editorDiv,
-            parentElement.nextSibling
-        );
+        parentElement.parentNode!.insertBefore(editorDiv, parentElement.nextSibling);
 
         deleteTransformBtn.disabled = false;
     }
@@ -807,30 +1034,10 @@ export class JagEd extends GameShell {
         clearFramesBtn.addEventListener("click", () => {
             if (clearFramesBtn.disabled) return;
 
-            const selectedModelId = this.selectedModel;
-
-            if (selectedModelId) {
-                const modelMeshes = this.builtModel;
-                if (modelMeshes) {
-                    const meshArray = Array.isArray(modelMeshes)
-                        ? modelMeshes
-                        : [modelMeshes];
-                    let modelToReset = null;
-
-                    for (const mesh of meshArray) {
-                        if (mesh && mesh.userData && mesh.userData.originalModel) {
-                            modelToReset = mesh.userData.originalModel;
-                            break;
-                        }
-                    }
-
-                    if (modelToReset) {
-                        modelToReset.resetToOriginal();
-                        // renderer.updateMeshGeometry();
-                        // renderer.updateVertexVisuals(selectedModelId);
-                    }
-                }
+            if (this.builtModel) {
+                this.builtModel.resetToOriginal();
             }
+
             this.currentSelectedAnimFrameInstance = null;
             this.updateAnimFrameDetailsUI(null);
             document
@@ -893,33 +1100,35 @@ export class JagEd extends GameShell {
         });
 
         vertexToggle.addEventListener("click", () => {
-            const isActive = false; // this.viewer.getRenderer().toggleVertexNumbers();
-            vertexToggle.textContent = isActive
+            this.showVertexNumbers = !this.showVertexNumbers;
+            vertexToggle.textContent = this.showVertexNumbers
                 ? "Hide Vertex Numbers"
                 : "Show Vertex Numbers";
-            vertexToggle.classList.toggle("active", isActive);
+            vertexToggle.classList.toggle("active", this.showVertexNumbers);
+            
+            this.sceneDelta++;
         });
 
         wireframeToggle.addEventListener("click", () => {
-            const isActive = false; // this.viewer.getRenderer().toggleWireframe();
-            wireframeToggle.textContent = isActive
-                ? "Hide Wireframe"
-                : "Show Wireframe";
-            wireframeToggle.classList.toggle("active", isActive);
+        const isActive = wireframeToggle.classList.contains("active");
+        const newState = !isActive;
+        
+        wireframeToggle.textContent = newState ? "Hide Wireframe" : "Show Wireframe";
+        wireframeToggle.classList.toggle("active", newState);
+        
+        if (this.builtModel) {
+            this.builtModel.wireFrame = newState;
+        }
         });
 
         editToggle.addEventListener("click", () => {
-            const isActive = false; // this.viewer.getRenderer().toggleEditMode();
-            editToggle.textContent = isActive
-                ? "Disable Vertex Editing"
-                : "Enable Vertex Editing";
-            editToggle.classList.toggle("active", isActive);
-            this.updateVertexLabelUIState();
+            this.toggleVertexEditMode();
         });
 
         viewModeSelect.addEventListener("change", () => {
             this.updateModelListUI();
             this.updateExportButtonState();
+            this.updateLabelsEditBoxes();
         });
 
         this.exportModelButton.addEventListener("click", () =>
@@ -928,26 +1137,26 @@ export class JagEd extends GameShell {
         this.updateExportButtonState();
     }
 
+    updateLabelsEditBoxes() {
+        const viewModeSelect = document.getElementById("view-mode-select") as HTMLSelectElement;
+        const selectedMode = viewModeSelect.value;
+
+        const isNpcMode = selectedMode === "npcs";
+
+        if (this.changeVertexLabels) {
+        this.changeVertexLabels.disabled = isNpcMode;
+        this.changeVertexLabels.checked = isNpcMode ? false : this.changeVertexLabels.checked;
+        }
+
+        if (this.changeFaceLabels) {
+        this.changeFaceLabels.disabled = isNpcMode;
+        this.changeFaceLabels.checked = isNpcMode ? false : this.changeFaceLabels.checked;
+        }
+    }
+
     updateExportButtonState() {
         if (this.exportModelButton) {
-            const selectedModelId = this.selectedModel;
-            let modelInstanceExists = false;
-
-            if (selectedModelId) {
-                const modelMeshes = this.builtModel;
-                if (modelMeshes) {
-                    const meshArray = Array.isArray(modelMeshes)
-                        ? modelMeshes
-                        : [modelMeshes];
-                    modelInstanceExists =
-                        meshArray.length > 0 &&
-                        meshArray[0] &&
-                        meshArray[0].userData &&
-                        meshArray[0].userData.originalModel;
-                }
-            }
-
-            this.exportModelButton.disabled = !modelInstanceExists;
+            this.exportModelButton.disabled = !this.builtModel;
         }
     }
 
@@ -959,6 +1168,14 @@ export class JagEd extends GameShell {
             '<div class="label-item no-labels"><span style="color: #888; font-style: italic;">No model loaded</span></div>';
         (document.getElementById("clear-labels") as HTMLButtonElement).disabled =
             true;
+        this.changeFaceLabels = document.getElementById("change-face-labels") as HTMLInputElement;
+        this.changeFaceLabels?.addEventListener("change", () => {
+            const selectedModel = this.selectedModel;
+            if (selectedModel) {
+                this.updateFaceLabelUI(selectedModel);
+            }
+            this.updateLabelsEditBoxes();
+        })
     }
 
     initializeVertexLabelPanel() {
@@ -970,6 +1187,93 @@ export class JagEd extends GameShell {
         (
             document.getElementById("clear-vertex-labels") as HTMLButtonElement
         ).disabled = true;
+        this.changeVertexLabels = document.getElementById("change-vertex-labels") as HTMLInputElement;
+        this.changeVertexLabels?.addEventListener("change", () => {
+            const selectedModel = this.selectedModel;
+            if (selectedModel) {
+                this.updateVertexLabelUI(selectedModel);
+            }
+            this.updateLabelsEditBoxes();
+        })
+    }
+
+    buildRemappedFaceArray(model: Model, map: Record<number, number>): Int32Array {
+        const out = new Int32Array(model.faceCount).fill(0);
+
+        if (model.labelFaces) {
+        model.labelFaces.forEach((faces, grp) => {
+            if (!faces) return;
+            const target = map[grp] ?? grp;
+            for (let i = 0; i < faces.length; i++) out[faces[i]] = target;
+        });
+        }
+
+        return out;
+    }
+
+    buildRemappedVertexArray(model: Model, map: Record<number, number>): Int32Array {
+        const out = new Int32Array(model.vertexCount).fill(0);
+
+        if (model.labelVertices) {
+        model.labelVertices.forEach((verts, grp) => {
+            if (!verts) return;
+            const target = map[grp] ?? grp;
+            for (let i = 0; i < verts.length; i++) out[verts[i]] = target;
+        });
+        }
+
+        return out;
+    }
+
+    applyCustomFaceLabels(model: Model) {
+        const mapping: Record<number, number> = {};
+        const labelItems = document.querySelectorAll("#label-list .label-item");
+
+        labelItems.forEach((item) => {
+        const labelText = item.querySelector("span")?.textContent;
+        const input = item.querySelector("input") as HTMLInputElement;
+
+        if (!labelText || !input) return;
+
+        const match = labelText.match(/Label\s+(\d+)/);
+        if (!match) return;
+
+        const originalId = parseInt(match[1]);
+        const newId = parseInt(input.value);
+
+        if (!isNaN(newId) && newId !== originalId) {
+            mapping[originalId] = newId;
+        }
+        });
+
+        model.faceLabelForExport = this.buildRemappedFaceArray(model, mapping);
+        model.hadOriginalFaceLabels = true;
+    }
+
+
+    applyCustomVertexLabels(model: Model) {
+        const mapping: Record<number, number> = {};
+        const labelItems = document.querySelectorAll("#vertex-label-list .label-item");
+
+        labelItems.forEach((item) => {
+        const labelText = item.querySelector("span")?.textContent;
+        const input = item.querySelector("input") as HTMLInputElement;
+
+        if (!labelText || !input) return;
+
+        const match = labelText.match(/Label\s+(\d+)/);
+        if (!match) return;
+
+        const originalId = parseInt(match[1]);
+        const newId = parseInt(input.value);
+
+        if (!isNaN(newId) && newId !== originalId) {
+            mapping[originalId] = newId;
+        }
+        });
+
+        model.vertexLabelForExport = this.buildRemappedVertexArray(model, mapping);
+        model.hadOriginalVertexLabels = true;
     }
 
     async updateModelListUI() {
@@ -1011,6 +1315,8 @@ export class JagEd extends GameShell {
                         this.handleClearSequence();
                         this.updateAnimationButtonStates();
                         this.updateExportButtonState();
+                        this.resetWireframeButtonState();
+                        this.setupModelHighlighting();
                     } catch (error) {
                         item.classList.remove("loading");
                         item.textContent = `${modelId} (error)`;
@@ -1073,6 +1379,8 @@ export class JagEd extends GameShell {
                         this.handleClearSequence();
                         this.updateAnimationButtonStates();
                         this.updateExportButtonState();
+                        this.resetWireframeButtonState();
+                        this.setupModelHighlighting();
                     } catch (error: any) {
                         console.error(`Error loading object ${npcId}:`, error);
                         item.classList.remove("loading");
@@ -1168,6 +1476,8 @@ export class JagEd extends GameShell {
                         this.handleClearSequence();
                         this.updateAnimationButtonStates();
                         this.updateExportButtonState();
+                        this.resetWireframeButtonState();
+                        this.setupModelHighlighting();
                     } catch (error: any) {
                         console.error(`Error loading object ${objId}:`, error);
                         item.classList.remove("loading");
@@ -1341,6 +1651,8 @@ export class JagEd extends GameShell {
                         this.handleClearSequence();
                         this.updateAnimationButtonStates();
                         this.updateExportButtonState();
+                        this.resetWireframeButtonState();
+                        this.setupModelHighlighting();
                     } catch (error: any) {
                         console.error(`Error loading location ${locId}:`, error);
                         item.classList.remove("loading");
@@ -1362,6 +1674,14 @@ export class JagEd extends GameShell {
         this.filterModelList();
         this.updateAnimationButtonStates();
         this.updateExportButtonState();
+    }
+
+    private resetWireframeButtonState(): void {
+        const wireframeToggle = document.getElementById("wireframe-toggle") as HTMLButtonElement;
+        if (wireframeToggle) {
+            wireframeToggle.classList.remove("active");
+            wireframeToggle.textContent = "Show Wireframe";
+        }
     }
 
     updateExportFrameButtonState() {
@@ -1429,8 +1749,6 @@ export class JagEd extends GameShell {
             if (status) {
                 status.textContent = `Frame "${filename}" exported successfully.`;
                 setTimeout(() => {
-                    // const numModels = this.loader.getAvailableModels()?.length || 0;
-                    // status.textContent = `Found ${numModels} .ob2 files`;
                 }, 3000);
             }
         } catch (error: any) {
@@ -1446,7 +1764,7 @@ export class JagEd extends GameShell {
     async handleExportModel() {
         const currentSelectedModel = this.selectedModel;
 
-        if (!this.viewer || !currentSelectedModel) {
+        if (!currentSelectedModel) {
             alert("No model selected to export.");
             this.updateExportButtonState();
             return;
@@ -1457,6 +1775,13 @@ export class JagEd extends GameShell {
             alert("Selected model instance not found.");
             this.updateExportButtonState();
             return;
+        }
+
+        if (this.changeFaceLabels?.checked && modelInstance) {
+        this.applyCustomFaceLabels(modelInstance);
+        }
+        if (this.changeVertexLabels?.checked && modelInstance) {
+        this.applyCustomVertexLabels(modelInstance);
         }
 
         try {
@@ -1577,22 +1902,7 @@ export class JagEd extends GameShell {
             "clear-seq"
         ) as HTMLButtonElement;
 
-        const selectedModelId = this.selectedModel;
-        let modelInstanceExists = false;
-
-        if (selectedModelId) {
-            const selectedModelMeshes = this.builtModel;
-            if (selectedModelMeshes) {
-                const meshArray = Array.isArray(selectedModelMeshes)
-                    ? selectedModelMeshes
-                    : [selectedModelMeshes];
-                modelInstanceExists =
-                    meshArray.length > 0 &&
-                    meshArray[0] &&
-                    meshArray[0].userData &&
-                    meshArray[0].userData.originalModel;
-            }
-        }
+        const modelInstanceExists = !!this.builtModel;
 
         const selectedSeqItem = document.querySelector(
             "#seq-list .label-item.selected"
@@ -1613,37 +1923,17 @@ export class JagEd extends GameShell {
             this.handleClearSequence();
         }
 
-        // const renderer = this.viewer.getRenderer();
-        const selectedModelId = this.selectedModel;
-        if (!selectedModelId) {
+        if (!this.selectedModel) {
             this.updateAnimationButtonStates();
             return;
         }
 
-        const modelMeshes = this.builtModel;
-        if (!modelMeshes) {
+        if (!this.builtModel) {
             this.updateAnimationButtonStates();
             return;
         }
 
-        const meshArray = Array.isArray(modelMeshes) ? modelMeshes : [modelMeshes];
-        let modelToAnimate = null;
-
-        for (const mesh of meshArray) {
-            if (mesh && mesh.userData && mesh.userData.originalModel) {
-                modelToAnimate = mesh.userData.originalModel;
-                break;
-            }
-        }
-
-        if (!modelToAnimate) {
-            this.updateAnimationButtonStates();
-            return;
-        }
-
-        const selectedSeqItem = document.querySelector(
-            "#seq-list .label-item.selected"
-        );
+        const selectedSeqItem = document.querySelector("#seq-list .label-item.selected");
         if (!selectedSeqItem) {
             this.updateAnimationButtonStates();
             return;
@@ -1657,7 +1947,7 @@ export class JagEd extends GameShell {
             return;
         }
 
-        this.currentAnimation.modelRef = modelToAnimate;
+        this.currentAnimation.modelRef = this.builtModel;
         this.currentAnimation.seqId = seqId;
         this.currentAnimation.seqData = seqData;
         this.currentAnimation.frameIndex = 0;
@@ -1720,12 +2010,6 @@ export class JagEd extends GameShell {
         if (numericFrameId !== -1) {
             model.resetToOriginal();
             model.applyTransform(numericFrameId);
-            // this.viewer.getRenderer().updateMeshGeometry();
-
-            // const currentSelectedModelId = this.viewer.getRenderer().selectedModel;
-            // if (currentSelectedModelId) {
-            //     this.viewer.getRenderer().updateVertexVisuals(currentSelectedModelId);
-            // }
         }
 
         this.currentAnimation.frameIndex = frameIndex + 1;
@@ -1782,12 +2066,6 @@ export class JagEd extends GameShell {
         }
         if (this.currentAnimation.modelRef) {
             this.currentAnimation.modelRef.resetToOriginal();
-            // this.viewer.getRenderer().updateMeshGeometry();
-
-            // const currentSelectedModelId = this.viewer.getRenderer().selectedModel;
-            // if (currentSelectedModelId) {
-            //     this.viewer.getRenderer().updateVertexVisuals(currentSelectedModelId);
-            // }
         }
 
         this.currentAnimation = {
@@ -1822,14 +2100,6 @@ export class JagEd extends GameShell {
                 if (this.currentAnimation.modelRef) {
                     if (this.currentAnimation.timerId) {
                         this.currentAnimation.modelRef.resetToOriginal();
-                        // this.viewer.getRenderer().updateMeshGeometry();
-                        // const currentSelectedModelId =
-                        //     this.viewer.getRenderer().selectedModel;
-                        // if (currentSelectedModelId) {
-                        //     this.viewer
-                        //         .getRenderer()
-                        //         .updateVertexVisuals(currentSelectedModelId);
-                        // }
                     }
                 }
                 this.currentAnimation = {
@@ -2011,61 +2281,27 @@ export class JagEd extends GameShell {
             timerId: null,
         };
 
-        // const renderer = this.viewer.getRenderer();
         const selectedModelId = this.selectedModel;
         if (!selectedModelId) {
             this.updateAnimationButtonStates();
             return;
         }
 
-        const modelMeshes = this.builtModel;
-        if (!modelMeshes) {
+        if (!this.builtModel) {
             this.updateAnimationButtonStates();
             return;
         }
 
-        const meshArray = Array.isArray(modelMeshes) ? modelMeshes : [modelMeshes];
-        let modelToAnimate: Model | null = null;
-        for (const mesh of meshArray) {
-            if (mesh && mesh.userData && mesh.userData.originalModel) {
-                modelToAnimate = mesh.userData.originalModel as Model;
-                break;
-            }
-        }
-        if (!modelToAnimate) {
-            this.updateAnimationButtonStates();
-            return;
-        }
+        this.currentAnimation.modelRef = this.builtModel;
 
-        this.currentAnimation.modelRef = modelToAnimate;
-
-        modelToAnimate.resetToOriginal();
-        modelToAnimate.applyTransform(frameNumericId);
-        // renderer.updateMeshGeometry();
-        // renderer.updateVertexVisuals(selectedModelId);
+        this.builtModel.resetToOriginal();
+        this.builtModel.applyTransform(frameNumericId);
         this.updateAnimationButtonStates();
     }
 
-    handleTransformOperationClick(
-        animFrame: AnimFrame,
-        transformIndexInFrame: number
-    ) {
-        // const renderer = this.viewer.getRenderer();
-        const selectedModelId = this.selectedModel;
-        if (!selectedModelId) return;
-
-        const modelMeshes = this.builtModel; // renderer.modelMeshes.get(selectedModelId);
-        if (!modelMeshes) return;
-
-        const meshArray = Array.isArray(modelMeshes) ? modelMeshes : [modelMeshes];
-        let modelInstance: Model | null = null;
-        for (const mesh of meshArray) {
-            if (mesh && mesh.userData && mesh.userData.originalModel) {
-                modelInstance = mesh.userData.originalModel as Model;
-                break;
-            }
-        }
-        if (!modelInstance) return;
+    handleTransformOperationClick(animFrame: AnimFrame, transformIndexInFrame: number) {
+        if (!this.selectedModel) return;
+        if (!this.builtModel) return;
 
         const animBase = animFrame.base;
         if (
@@ -2078,71 +2314,70 @@ export class JagEd extends GameShell {
             console.warn(
                 "Cannot highlight: AnimFrame or AnimBase data incomplete or index out of bounds."
             );
-            // renderer.clearSpecificVertexHighlights();
-            // renderer.clearSpecificFaceHighlights();
+            this.clearTransformHighlights();
             return;
         }
 
         const baseGroupIndex = animFrame.bases[transformIndexInFrame];
-        if (
-            baseGroupIndex === undefined ||
-            baseGroupIndex >= animBase.animTypes.length ||
-            baseGroupIndex >= animBase.animLabels.length
-        ) {
+        
+        if (baseGroupIndex >= animBase.animLabels.length || baseGroupIndex >= animBase.animTypes.length) {
             console.warn(
-                `Invalid baseGroupIndex (${baseGroupIndex}) for transform. AnimBase might not have this group defined.`
+                `Base group index ${baseGroupIndex} is out of bounds for highlighting.`
             );
-            // renderer.clearSpecificVertexHighlights();
-            // renderer.clearSpecificFaceHighlights();
+            this.clearTransformHighlights();
             return;
         }
 
-        const transformType = animBase.animTypes[baseGroupIndex];
-        const affectedModelLabels = animBase.animLabels[baseGroupIndex];
+        this.highlightAffectedModelParts(animBase, baseGroupIndex);
+    }
 
-        // renderer.clearSpecificVertexHighlights();
-        // renderer.clearSpecificFaceHighlights();
+    private highlightTransformFaces(affectedLabels: Uint8Array): void {
+        if (!this.builtModel || !this.builtModel.labelFaces) return;
 
-        if (!affectedModelLabels || affectedModelLabels.length === 0) {
-            return;
-        }
-
-        if (transformType === 5) {
-            const allFaceIndicesToHighlight = new Set<number>();
-            if (modelInstance.labelFaces) {
-                for (let i = 0; i < affectedModelLabels.length; i++) {
-                    const faceGroupLabel = affectedModelLabels[i];
-                    if (modelInstance.labelFaces[faceGroupLabel]) {
-                        const facesInGroup = modelInstance.labelFaces[faceGroupLabel];
-                        for (let j = 0; j < facesInGroup.length; j++) {
-                            allFaceIndicesToHighlight.add(facesInGroup[j]);
-                        }
-                    }
+        const allFaceIndicesToHighlight = new Set<number>();
+        
+        for (let i = 0; i < affectedLabels.length; i++) {
+            const faceGroupLabel = affectedLabels[i];
+            if (this.builtModel.labelFaces[faceGroupLabel]) {
+                const facesInGroup = this.builtModel.labelFaces[faceGroupLabel];
+                for (let j = 0; j < facesInGroup.length; j++) {
+                    allFaceIndicesToHighlight.add(facesInGroup[j]);
                 }
             }
-            if (allFaceIndicesToHighlight.size > 0) {
-                // renderer.highlightSpecificFaces(Array.from(allFaceIndicesToHighlight));
-            }
-        } else {
-            const allVertexIndicesToHighlight = new Set<number>();
-            if (modelInstance.labelVertices) {
-                for (let i = 0; i < affectedModelLabels.length; i++) {
-                    const vertexGroupLabel = affectedModelLabels[i];
-                    if (modelInstance.labelVertices[vertexGroupLabel]) {
-                        const verticesInGroup =
-                            modelInstance.labelVertices[vertexGroupLabel];
-                        for (let j = 0; j < verticesInGroup.length; j++) {
-                            allVertexIndicesToHighlight.add(verticesInGroup[j]);
-                        }
-                    }
+        }
+
+        if (allFaceIndicesToHighlight.size > 0) {
+            this.highlightedFaces = allFaceIndicesToHighlight;
+            this.setupModelHighlighting();
+            this.builtModel.applyFaceHighlighting();
+            this.sceneDelta++;
+        }
+    }
+
+    private highlightTransformVertices(affectedLabels: Uint8Array): void {
+        if (!this.builtModel || !this.builtModel.labelVertices) return;
+
+        const allVertexIndicesToHighlight = new Set<number>();
+        
+        for (let i = 0; i < affectedLabels.length; i++) {
+            const vertexGroupLabel = affectedLabels[i];
+            if (this.builtModel.labelVertices[vertexGroupLabel]) {
+                const verticesInGroup = this.builtModel.labelVertices[vertexGroupLabel];
+                for (let j = 0; j < verticesInGroup.length; j++) {
+                    allVertexIndicesToHighlight.add(verticesInGroup[j]);
                 }
             }
-            if (allVertexIndicesToHighlight.size > 0) {
-                // renderer.highlightSpecificVertices(
-                //     Array.from(allVertexIndicesToHighlight)
-                // );
-            }
         }
+
+        if (allVertexIndicesToHighlight.size > 0) {
+            this.highlightedVertices = allVertexIndicesToHighlight;
+            this.sceneDelta++;
+        }
+    }
+
+    private clearTransformHighlights(): void {
+        this.clearFaceHighlights();
+        this.clearVertexHighlights();
     }
 
     updateAnimFrameDetailsUI(animFrame: AnimFrame | null) {
@@ -2156,11 +2391,6 @@ export class JagEd extends GameShell {
             "add-new-transform-btn"
         ) as HTMLButtonElement;
 
-        // const renderer = this.viewer.getRenderer();
-        // if (renderer) {
-        //     renderer.clearSpecificVertexHighlights();
-        //     renderer.clearSpecificFaceHighlights();
-        // }
         this.clearTransformEditor();
         this.updateExportFrameButtonState();
 
@@ -2295,14 +2525,8 @@ export class JagEd extends GameShell {
                     10
                 );
                 if (!isNaN(transformIndex)) {
-                    // const renderer = this.viewer.getRenderer();
-                    // if (renderer) {
-                    //     renderer.clearSpecificVertexHighlights();
-                    //     renderer.clearSpecificFaceHighlights();
-                    // }
-
-                    this.handleTransformOperationClick(animFrame, transformIndex);
                     this.showTransformEditor(animFrame, transformIndex, clickedElement);
+                    this.handleTransformOperationClick(animFrame, transformIndex);
 
                     const deleteTransformBtn = document.getElementById(
                         "delete-transform-btn"
@@ -2314,10 +2538,13 @@ export class JagEd extends GameShell {
         });
     }
 
+    private isSequenceRunning(): boolean {
+        return this.currentAnimation.timerId !== null && 
+            this.currentAnimation.modelRef !== null;
+    }
+
     showNewTransformForm() {
-        const formContainer = document.getElementById(
-            "new-transform-form-container"
-        )!;
+        const formContainer = document.getElementById("new-transform-form-container")!;
         if (
             !this.currentSelectedAnimFrameInstance ||
             !this.currentSelectedAnimFrameInstance.base
@@ -2339,17 +2566,19 @@ export class JagEd extends GameShell {
                 <select id="new-transform-base-group-select"></select>
                 <div id="affected-labels-info" style="font-size: 10px; color: #aaa; margin-top: 4px;">Select a base group to see affected model labels.</div>
             </div>
-            <div>
-                <label for="new-transform-x">X Value:</label>
-                <input type="number" id="new-transform-x" value="0">
-            </div>
-            <div>
-                <label for="new-transform-y">Y Value:</label>
-                <input type="number" id="new-transform-y" value="0">
-            </div>
-            <div>
-                <label for="new-transform-z">Z Value:</label>
-                <input type="number" id="new-transform-z" value="0">
+            <div id="new-transform-inputs-container">
+                <div>
+                    <label for="new-transform-x">X Value:</label>
+                    <input type="number" id="new-transform-x" value="0">
+                </div>
+                <div>
+                    <label for="new-transform-y">Y Value:</label>
+                    <input type="number" id="new-transform-y" value="0">
+                </div>
+                <div>
+                    <label for="new-transform-z">Z Value:</label>
+                    <input type="number" id="new-transform-z" value="0">
+                </div>
             </div>
             <div class="form-action-buttons" style="margin-top: 10px;">
                 <button id="cancel-add-transform-btn" class="label-control-btn">Cancel</button>
@@ -2372,6 +2601,63 @@ export class JagEd extends GameShell {
         this.activeNewTransformForm.affectedInfoDiv = document.getElementById(
             "affected-labels-info"
         ) as HTMLElement;
+
+        const updateInputTypes = (transformType: number) => {
+            const container = document.getElementById("new-transform-inputs-container")!;
+            const useSliders = transformType === 2 || transformType === 5;
+            const maxValue = useSliders ? 255 : undefined;
+            
+            if (useSliders) {
+                container.innerHTML = `
+                    <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                        <label style="width: 30px;">X:</label>
+                        <input type="range" id="new-transform-x" class="transform-slider" min="0" max="255" value="0">
+                        <span class="slider-value-display">0</span>
+                    </div>
+                    <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                        <label style="width: 30px;">Y:</label>
+                        <input type="range" id="new-transform-y" class="transform-slider" min="0" max="255" value="0">
+                        <span class="slider-value-display">0</span>
+                    </div>
+                    <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                        <label style="width: 30px;">Z:</label>
+                        <input type="range" id="new-transform-z" class="transform-slider" min="0" max="255" value="0">
+                        <span class="slider-value-display">0</span>
+                    </div>
+                `;
+
+                ["x", "y", "z"].forEach(axis => {
+                    const slider = document.getElementById(`new-transform-${axis}`) as HTMLInputElement;
+                    const display = slider.nextElementSibling as HTMLSpanElement;
+                    
+                    const updateDisplay = () => {
+                        display.textContent = slider.value;
+                    };
+                    
+                    slider.addEventListener("input", updateDisplay);
+                    slider.addEventListener("change", updateDisplay);
+                });
+            } else {
+                container.innerHTML = `
+                    <div>
+                        <label for="new-transform-x">X Value:</label>
+                        <input type="number" id="new-transform-x" value="0">
+                    </div>
+                    <div>
+                        <label for="new-transform-y">Y Value:</label>
+                        <input type="number" id="new-transform-y" value="0">
+                    </div>
+                    <div>
+                        <label for="new-transform-z">Z Value:</label>
+                        <input type="number" id="new-transform-z" value="0">
+                    </div>
+                `;
+            }
+
+            this.activeNewTransformForm.xInput = document.getElementById("new-transform-x") as HTMLInputElement;
+            this.activeNewTransformForm.yInput = document.getElementById("new-transform-y") as HTMLInputElement;
+            this.activeNewTransformForm.zInput = document.getElementById("new-transform-z") as HTMLInputElement;
+        };
 
         if (
             animBase.animLength > 0 &&
@@ -2403,6 +2689,9 @@ export class JagEd extends GameShell {
                     this.highlightAffectedModelParts(animBase, selectedGroupIndex);
 
                     const transformType = animBase.animTypes[selectedGroupIndex];
+
+                    updateInputTypes(transformType);
+
                     if (
                         this.activeNewTransformForm.xInput &&
                         this.activeNewTransformForm.yInput &&
@@ -2416,6 +2705,16 @@ export class JagEd extends GameShell {
                             this.activeNewTransformForm.xInput.value = "0";
                             this.activeNewTransformForm.yInput.value = "0";
                             this.activeNewTransformForm.zInput.value = "0";
+                        }
+
+                        if (transformType === 2 || transformType === 5) {
+                            document.querySelectorAll("#new-transform-inputs-container .slider-value-display").forEach((display, index) => {
+                                const values = ["0", "0", "0"];
+                                if (transformType === 3) {
+                                    values[0] = values[1] = values[2] = "128";
+                                }
+                                (display as HTMLSpanElement).textContent = values[index];
+                            });
                         }
                     }
                 }
@@ -2439,16 +2738,12 @@ export class JagEd extends GameShell {
     }
 
     hideNewTransformForm() {
-        const formContainer = document.getElementById(
-            "new-transform-form-container"
-        )!;
+        const formContainer = document.getElementById("new-transform-form-container")!;
         formContainer.style.display = "none";
         formContainer.innerHTML = "";
-        // const renderer = this.viewer.getRenderer();
-        // if (renderer) {
-        //     renderer.clearSpecificVertexHighlights();
-        //     renderer.clearSpecificFaceHighlights();
-        // }
+        
+        this.clearTransformHighlights();
+        
         this.activeNewTransformForm = {
             baseGroupSelect: null,
             xInput: null,
@@ -2493,19 +2788,10 @@ export class JagEd extends GameShell {
                 console.warn(
                     "AnimFrame ID is undefined, cannot refresh 3D model view after deletion. Resetting model."
                 );
-                // const renderer = this.viewer.getRenderer();
                 const selectedModelId = this.selectedModel;
                 if (selectedModelId) {
-                    const modelMeshes = this.builtModel;
-                    if (modelMeshes) {
-                        const meshArray = Array.isArray(modelMeshes)
-                            ? modelMeshes
-                            : [modelMeshes];
-                        if (meshArray[0] && meshArray[0].userData.originalModel) {
-                            (meshArray[0].userData.originalModel as Model).resetToOriginal();
-                            // renderer.updateMeshGeometry();
-                            // renderer.updateVertexVisuals(selectedModelId);
-                        }
+                    if (this.builtModel) {
+                        this.builtModel.resetToOriginal();
                     }
                 }
             }
@@ -2542,84 +2828,36 @@ export class JagEd extends GameShell {
     }
 
     highlightAffectedModelParts(animBase: AnimBase, baseGroupIndex: number) {
-        // const renderer = this.viewer.getRenderer();
-        // const selectedModelId = renderer.selectedModel;
-        // if (!selectedModelId) return;
+        if (!this.builtModel) return;
 
-        // const modelMeshes = renderer.modelMeshes.get(selectedModelId);
-        // if (!modelMeshes) return;
+        if (
+            !animBase ||
+            !animBase.animLabels ||
+            !animBase.animTypes ||
+            baseGroupIndex >= animBase.animLabels.length ||
+            baseGroupIndex >= animBase.animTypes.length
+        ) {
+            console.warn(
+                "Cannot highlight: AnimBase data incomplete or index out of bounds for highlighting."
+            );
+            this.clearTransformHighlights();
+            return;
+        }
 
-        // const meshArray = Array.isArray(modelMeshes) ? modelMeshes : [modelMeshes];
-        // let modelInstance: Model | null = null;
-        // for (const mesh of meshArray) {
-        //     if (mesh && mesh.userData && mesh.userData.originalModel) {
-        //         modelInstance = mesh.userData.originalModel as Model;
-        //         break;
-        //     }
-        // }
-        // if (!modelInstance) return;
+        const transformType = animBase.animTypes[baseGroupIndex];
+        const affectedModelLabels = animBase.animLabels[baseGroupIndex];
 
-        // if (
-        //     !animBase ||
-        //     !animBase.animLabels ||
-        //     !animBase.animTypes ||
-        //     baseGroupIndex >= animBase.animLabels.length ||
-        //     baseGroupIndex >= animBase.animTypes.length
-        // ) {
-        //     console.warn(
-        //         "Cannot highlight: AnimBase data incomplete or index out of bounds for highlighting."
-        //     );
-        //     renderer.clearSpecificVertexHighlights();
-        //     renderer.clearSpecificFaceHighlights();
-        //     return;
-        // }
+        this.clearTransformHighlights();
 
-        // const transformType = animBase.animTypes[baseGroupIndex];
-        // const affectedModelLabels = animBase.animLabels[baseGroupIndex];
+        if (!affectedModelLabels || affectedModelLabels.length === 0) {
+            return;
+        }
 
-        // renderer.clearSpecificVertexHighlights();
-        // renderer.clearSpecificFaceHighlights();
-
-        // if (!affectedModelLabels || affectedModelLabels.length === 0) {
-        //     return;
-        // }
-
-        // if (transformType === 5) {
-        //     const allFaceIndicesToHighlight = new Set<number>();
-        //     if (modelInstance.labelFaces) {
-        //         for (let i = 0; i < affectedModelLabels.length; i++) {
-        //             const faceGroupLabel = affectedModelLabels[i];
-        //             if (modelInstance.labelFaces[faceGroupLabel]) {
-        //                 const facesInGroup = modelInstance.labelFaces[faceGroupLabel];
-        //                 for (let j = 0; j < facesInGroup.length; j++) {
-        //                     allFaceIndicesToHighlight.add(facesInGroup[j]);
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     if (allFaceIndicesToHighlight.size > 0) {
-        //         renderer.highlightSpecificFaces(Array.from(allFaceIndicesToHighlight));
-        //     }
-        // } else {
-        //     const allVertexIndicesToHighlight = new Set<number>();
-        //     if (modelInstance.labelVertices) {
-        //         for (let i = 0; i < affectedModelLabels.length; i++) {
-        //             const vertexGroupLabel = affectedModelLabels[i];
-        //             if (modelInstance.labelVertices[vertexGroupLabel]) {
-        //                 const verticesInGroup =
-        //                     modelInstance.labelVertices[vertexGroupLabel];
-        //                 for (let j = 0; j < verticesInGroup.length; j++) {
-        //                     allVertexIndicesToHighlight.add(verticesInGroup[j]);
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     if (allVertexIndicesToHighlight.size > 0) {
-        //         renderer.highlightSpecificVertices(
-        //             Array.from(allVertexIndicesToHighlight)
-        //         );
-        //     }
-        // }
+        if (transformType === 5) {
+            this.highlightTransformFaces(affectedModelLabels);
+        } else {
+            this.highlightTransformVertices(affectedModelLabels);
+        }
     }
 
     handleConfirmAddNewTransform() {
@@ -2664,70 +2902,150 @@ export class JagEd extends GameShell {
         }
     }
 
-    updateFaceLabelUI(modelId: string) {
-        const labelList = document.getElementById("label-list")!;
+    updateFaceLabelUI(modelId: string): void {
+        const labelList = document.getElementById("label-list") as HTMLElement;
         labelList.innerHTML = "";
-        // const labels = this.viewer.getRenderer().getModelFaceLabels(modelId);
-        const clearBtn = document.getElementById(
-            "clear-labels"
-        ) as HTMLButtonElement;
-
-        const modelIsLoaded = !!modelId;
+        
+        const clearBtn = document.getElementById("clear-labels") as HTMLButtonElement;
+        const modelIsLoaded = !!modelId && !!this.builtModel;
         if (clearBtn) clearBtn.disabled = !modelIsLoaded;
 
-        // if (!labels || labels.length === 0) {
+        if (!this.builtModel || !this.builtModel.labelFaces) {
             labelList.innerHTML =
                 '<div class="label-item no-labels"><span style="color: #888; font-style: italic;">No face labels available</span></div>';
-        //     return;
-        // }
+            return;
+        }
 
-        // labels.forEach((label) => {
-        //     const item = document.createElement("div");
-        //     item.className = "label-item";
-        //     item.innerHTML = `<span>Label ${label.id}</span><span class="label-count">${label.faceCount} faces</span>`;
-        //     item.addEventListener("click", () => {
-        //         document
-        //             .querySelectorAll("#label-list .label-item")
-        //             .forEach((el) => el.classList.remove("selected", "highlighted-face"));
-        //         item.classList.add("highlighted-face");
-        //         this.viewer.getRenderer().highlightFaceLabel(label.id);
-        //     });
-        //     labelList.appendChild(item);
-        // });
+        this.builtModel.labelFaces.forEach((faceIndices, labelId) => {
+            if (faceIndices && faceIndices.length > 0) {
+                const item = document.createElement("div");
+                item.className = "label-item";
+                item.innerHTML = `<span>Label ${labelId}</span><span class="label-count">${faceIndices.length} faces</span>`;
+
+                const input = document.createElement("input");
+                input.type = "text";
+                input.value = labelId.toString();
+                input.className = "label-edit-input";
+                input.style.marginLeft = "8px";
+                input.style.width = "40px";
+                input.disabled = !this.changeFaceLabels?.checked
+
+                item.appendChild(input);
+
+                item.addEventListener("click", () => {
+                    document
+                        .querySelectorAll("#label-list .label-item")
+                        .forEach((el) => el.classList.remove("selected", "highlighted-face"));
+                    item.classList.add("highlighted-face");
+                    this.highlightFaceLabel(labelId);
+                });
+                labelList.appendChild(item);
+            }
+        });
+
+        if (labelList.children.length === 0) {
+            labelList.innerHTML =
+                '<div class="label-item no-labels"><span style="color: #888; font-style: italic;">No face labels available</span></div>';
+        }
     }
 
-    updateVertexLabelUI(modelId: string) {
+    updateVertexLabelUI(modelId: string): void {
         const list = document.getElementById("vertex-label-list") as HTMLElement;
         list.innerHTML = "";
-        // const labels = this.viewer.getRenderer().getModelVertexLabels(modelId);
+        
+        this.updateVertexLabelUIState();
 
-        // if (!labels || labels.length === 0) {
+        if (!this.builtModel || !this.builtModel.labelVertices) {
             list.innerHTML =
                 '<div class="label-item no-labels"><span style="color: #888; font-style: italic;">No vertex labels available</span></div>';
-            this.updateVertexLabelUIState();
-        //     return;
-        // }
-        // this.updateVertexLabelUIState();
+            return;
+        }
 
-        // labels.forEach((label) => {
-        //     const item = document.createElement("div");
-        //     item.className = "label-item";
-        //     item.innerHTML = `<span>Label ${label.id}</span><span class="label-count">${label.vertexCount} vertices</span>`;
-        //     item.addEventListener("click", () => {
-        //         if (!this.viewer.getRenderer().editMode) {
-        //             alert("Enable Vertex Editing mode to highlight vertex labels.");
-        //             return;
-        //         }
-        //         document
-        //             .querySelectorAll("#vertex-label-list .label-item")
-        //             .forEach((el) =>
-        //                 el.classList.remove("selected", "highlighted-vertex")
-        //             );
-        //         item.classList.add("highlighted-vertex");
-        //         this.viewer.getRenderer().highlightVertexLabel(label.id);
-        //     });
-        //     list.appendChild(item);
-        // });
+        this.builtModel.labelVertices.forEach((vertexIndices, labelId) => {
+            if (vertexIndices && vertexIndices.length > 0) {
+                const item = document.createElement("div");
+                item.className = "label-item";
+                item.innerHTML = `<span>Label ${labelId}</span><span class="label-count">${vertexIndices.length} vertices</span>`;
+
+                const input = document.createElement("input");
+                input.type = "text";
+                input.value = labelId.toString();
+                input.className = "label-edit-input";
+                input.style.marginLeft = "8px";
+                input.style.width = "40px";
+                input.disabled = !this.changeVertexLabels?.checked;
+
+                item.appendChild(input);
+                
+                item.addEventListener("click", () => {
+                    document
+                        .querySelectorAll("#vertex-label-list .label-item")
+                        .forEach((el) =>
+                            el.classList.remove("selected", "highlighted-vertex")
+                        );
+                    item.classList.add("highlighted-vertex");
+                    this.highlightVertexLabel(labelId);
+                });
+                list.appendChild(item);
+            }
+        });
+
+        if (list.children.length === 0) {
+            list.innerHTML =
+                '<div class="label-item no-labels"><span style="color: #888; font-style: italic;">No vertex labels available</span></div>';
+        }
+    }
+
+    private highlightFaceLabel(labelId: number): void {
+        if (!this.builtModel || !this.builtModel.labelFaces || !this.builtModel.labelFaces[labelId]) {
+            return;
+        }
+
+        this.clearFaceHighlights();
+
+        const faceIndices = this.builtModel.labelFaces[labelId];
+        if (!faceIndices) return;
+
+        this.highlightedFaces = new Set(faceIndices);
+        this.setupModelHighlighting();
+        this.builtModel.applyFaceHighlighting();
+        this.sceneDelta++;
+    }
+
+    private setupModelHighlighting(): void {
+        if (this.builtModel) {
+            this.builtModel.isHighlightedFace = (faceIndex: number) => {
+                return this.highlightedFaces.has(faceIndex);
+            };
+        }
+    }
+
+    private highlightVertexLabel(labelId: number): void {
+        if (!this.builtModel || !this.builtModel.labelVertices || !this.builtModel.labelVertices[labelId]) {
+            return;
+        }
+
+        this.clearVertexHighlights();
+
+        const vertexIndices = this.builtModel.labelVertices[labelId];
+        if (!vertexIndices) return;
+
+        this.highlightedVertices = new Set(vertexIndices);
+
+        this.sceneDelta++;
+    }
+
+    private clearFaceHighlights(): void {
+        if (this.builtModel) {
+            this.builtModel.restoreFaceColors();
+        }
+        this.highlightedFaces = new Set();
+        this.sceneDelta++;
+    }
+
+    private clearVertexHighlights(): void {
+        this.highlightedVertices = new Set();
+        this.sceneDelta++;
     }
 
     updateVertexLabelUIState() {
@@ -2735,19 +3053,19 @@ export class JagEd extends GameShell {
             "clear-vertex-labels"
         ) as HTMLButtonElement;
         const modelLoaded = !!this.selectedModel;
-        const editModeActive = false; // this.viewer.getRenderer().editMode;
+        const editModeActive = this.isVertexEditMode;
 
         clearBtn.disabled = !modelLoaded || !editModeActive;
     }
 
     setupFaceLabelUI() {
-        const clearLabelsBtn = document.getElementById(
-            "clear-labels"
-        ) as HTMLButtonElement;
+        const clearLabelsBtn = document.getElementById("clear-labels") as HTMLButtonElement;
 
         clearLabelsBtn.addEventListener("click", () => {
             if (clearLabelsBtn.disabled) return;
-            // this.viewer.getRenderer().clearFaceHighlights();
+            
+            this.clearFaceHighlights();
+            
             document
                 .querySelectorAll("#label-list .label-item")
                 .forEach((el) => el.classList.remove("selected", "highlighted-face"));
@@ -2758,13 +3076,13 @@ export class JagEd extends GameShell {
     }
 
     setupVertexLabelUI() {
-        const clearBtn = document.getElementById(
-            "clear-vertex-labels"
-        ) as HTMLButtonElement;
+        const clearBtn = document.getElementById("clear-vertex-labels") as HTMLButtonElement;
 
         clearBtn.addEventListener("click", () => {
             if (clearBtn.disabled) return;
-            // this.viewer.getRenderer().clearVertexHighlights();
+            
+            this.clearVertexHighlights();
+            
             document
                 .querySelectorAll("#vertex-label-list .label-item")
                 .forEach((el) => el.classList.remove("selected", "highlighted-vertex"));
