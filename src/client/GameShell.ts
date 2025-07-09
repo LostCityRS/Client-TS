@@ -209,8 +209,6 @@ export default abstract class GameShell {
                 this.lastMouseClickButton = 0;
 
                 await this.update();
-
-                this.keyQueueReadPos = this.keyQueueWritePos;
                 count += ratio;
             }
             count &= 0xff;
