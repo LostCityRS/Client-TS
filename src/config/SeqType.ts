@@ -64,7 +64,7 @@ export default class SeqType extends ConfigType {
 
             if (seq.postanim_move === -1) {
                 if (seq.walkmerge === null) {
-                    seq.preanim_move = PostanimMove.DELAYMOVE;
+                    seq.postanim_move = PostanimMove.DELAYMOVE;
                 } else {
                     seq.postanim_move = PostanimMove.MERGE;
                 }
