@@ -10628,7 +10628,7 @@ export class Client extends GameShell {
 
             for (let i: number = 0; i < 100; i++) {
                 const message: string | null = this.messageText[i];
-                if (!message) {
+                if (message === null) {
                     continue;
                 }
 
