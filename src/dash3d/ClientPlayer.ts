@@ -389,8 +389,8 @@ export default class ClientPlayer extends ClientEntity {
         let hash: bigint = this.hash;
         let primaryTransformId: number = -1;
         let secondaryTransformId: number = -1;
-        let rightHandValue: number = -1;
         let leftHandValue: number = -1;
+        let rightHandValue: number = -1;
 
         if (this.primarySeqId >= 0 && this.primarySeqDelay === 0) {
             const seq: SeqType = SeqType.types[this.primarySeqId];
@@ -406,14 +406,14 @@ export default class ClientPlayer extends ClientEntity {
                 }
             }
 
-            if (seq.righthand >= 0) {
-                rightHandValue = seq.righthand;
-                hash += BigInt(rightHandValue - this.appearance[5]) << 40n;
+            if (seq.replaceheldleft >= 0) {
+                leftHandValue = seq.replaceheldleft;
+                hash += BigInt(leftHandValue - this.appearance[5]) << 40n;
             }
 
-            if (seq.lefthand >= 0) {
-                leftHandValue = seq.lefthand;
-                hash += BigInt(leftHandValue - this.appearance[3]) << 48n;
+            if (seq.replaceheldright >= 0) {
+                rightHandValue = seq.replaceheldright;
+                hash += BigInt(rightHandValue - this.appearance[3]) << 48n;
             }
         } else if (this.secondarySeqId >= 0) {
             const secondFrames: Int16Array | null = SeqType.types[this.secondarySeqId].frames;
@@ -426,15 +426,15 @@ export default class ClientPlayer extends ClientEntity {
         if (!model) {
             let needsModel = false;
 
-            for (let part = 0; part < 12; part++) {
-                let value = this.appearance[part];
+            for (let slot = 0; slot < 12; slot++) {
+                let value = this.appearance[slot];
 
-                if (leftHandValue >= 0 && part == 3) {
-                    value = leftHandValue;
+                if (rightHandValue >= 0 && slot == 3) {
+                    value = rightHandValue;
                 }
 
-                if (rightHandValue >= 0 && part == 5) {
-                    value = rightHandValue;
+                if (leftHandValue >= 0 && slot == 5) {
+                    value = leftHandValue;
                 }
 
                 if (value >= 0x100 && value < 0x200 && !IdkType.types[value - 0x100].modelIsReady()) {
@@ -464,12 +464,12 @@ export default class ClientPlayer extends ClientEntity {
             for (let part: number = 0; part < 12; part++) {
                 let value: number = this.appearance[part];
 
-                if (leftHandValue >= 0 && part === 3) {
-                    value = leftHandValue;
+                if (rightHandValue >= 0 && part === 3) {
+                    value = rightHandValue;
                 }
 
-                if (rightHandValue >= 0 && part === 5) {
-                    value = rightHandValue;
+                if (leftHandValue >= 0 && part === 5) {
+                    value = leftHandValue;
                 }
 
                 if (value >= 256 && value < 512) {

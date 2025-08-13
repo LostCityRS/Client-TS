@@ -31,7 +31,7 @@ export default class ClientLocAnim extends ModelSource {
         this.seqFrame = 0;
         this.seqCycle = loopCycle;
 
-        if (randomFrame && this.seq.replayoff !== -1) {
+        if (randomFrame && this.seq.loops !== -1) {
             this.seqFrame = (Math.random() * this.seq.frameCount) | 0;
             this.seqCycle -= (Math.random() * this.seq.getFrameDuration(this.seqFrame)) | 0;
         }
@@ -40,7 +40,7 @@ export default class ClientLocAnim extends ModelSource {
     getModel(loopCycle: number): Model | null {
         if (this.seq) {
             let delta = loopCycle - this.seqCycle;
-            if (delta > 100 && this.seq.replayoff > 0) {
+            if (delta > 100 && this.seq.loops > 0) {
                 delta = 100;
             }
 
@@ -52,7 +52,7 @@ export default class ClientLocAnim extends ModelSource {
                     continue;
                 }
 
-                this.seqFrame -= this.seq.replayoff;
+                this.seqFrame -= this.seq.loops;
 
                 if (this.seqFrame < 0 || this.seqFrame >= this.seq.frameCount) {
                     this.seq = null;

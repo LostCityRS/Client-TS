@@ -30,16 +30,16 @@ export default class SeqType extends ConfigType {
     frames: Int16Array | null = null;
     iframes: Int16Array | null = null;
     delay: Int16Array | null = null;
-    replayoff: number = -1;
+    loops: number = -1;
     walkmerge: Int32Array | null = null;
     stretches: boolean = false;
     priority: number = 5;
-    righthand: number = -1;
-    lefthand: number = -1;
-    replaycount: number = 99;
+    replaceheldleft: number = -1;
+    replaceheldright: number = -1;
+    maxloops: number = 99;
     preanim_move: number = -1;
     postanim_move: number = -1;
-    restart_mode: number = -1;
+    duplicatebehavior: number = -1;
 
     static unpack(config: Jagfile): void {
         const dat: Packet = new Packet(config.read('seq.dat'));
@@ -124,7 +124,7 @@ export default class SeqType extends ConfigType {
                 this.delay[i] = dat.g2();
             }
         } else if (code === 2) {
-            this.replayoff = dat.g2();
+            this.loops = dat.g2();
         } else if (code === 3) {
             const count: number = dat.g1();
             this.walkmerge = new Int32Array(count + 1);
@@ -139,17 +139,17 @@ export default class SeqType extends ConfigType {
         } else if (code === 5) {
             this.priority = dat.g1();
         } else if (code === 6) {
-            this.righthand = dat.g2();
+            this.replaceheldleft = dat.g2();
         } else if (code === 7) {
-            this.lefthand = dat.g2();
+            this.replaceheldright = dat.g2();
         } else if (code === 8) {
-            this.replaycount = dat.g1();
+            this.maxloops = dat.g1();
         } else if (code === 9) {
             this.preanim_move = dat.g1();
         } else if (code === 10) {
             this.postanim_move = dat.g1();
         } else if (code === 11) {
-            this.restart_mode = dat.g1();
+            this.duplicatebehavior = dat.g1();
         } else {
             console.log('Error unrecognised seq config code: ', code);
         }
