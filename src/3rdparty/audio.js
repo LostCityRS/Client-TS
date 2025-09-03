@@ -5,7 +5,7 @@
     if (window.AudioContext) {
         window.audioContext = new window.AudioContext();
     }
-    var fixAudioContext = function (e) {
+    var fixAudioContext = function () {
         if (window.audioContext) {
             // Create empty buffer
             var buffer = window.audioContext.createBuffer(1, 1, 22050);

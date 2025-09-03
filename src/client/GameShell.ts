@@ -525,7 +525,7 @@ export default abstract class GameShell {
         }
     }
 
-    private onfocus(e: FocusEvent) {
+    private onfocus(_e: FocusEvent) {
         this.hasFocus = true;
         this.redrawScreen = true;
         this.refresh();
@@ -535,7 +535,7 @@ export default abstract class GameShell {
         }
     }
 
-    private onblur(e: FocusEvent) {
+    private onblur(_e: FocusEvent) {
         this.hasFocus = false;
 
         // CUSTOM: taken from later versions, releases all keys
