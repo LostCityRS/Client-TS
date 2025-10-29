@@ -10821,7 +10821,7 @@ export class Client extends GameShell {
                     }
 
                     line++;
-                } else if ((type === 1 || type === 2) && (this.chatPublicMode === 0 || (this.chatPublicMode === 1 && this.isFriend(sender)))) {
+                } else if ((type === 1 || type === 2) && (type === 1 || this.chatPublicMode === 0 || (this.chatPublicMode === 1 && this.isFriend(sender)))) {
                     if (y > 0 && y < 110) {
                         let x = 4;
                         if (modlevel == 1) {
