@@ -3424,7 +3424,7 @@ export class Client extends GameShell {
     private cinemaCamera(): void {
         let x: number = this.camMoveToLx * 128 + 64;
         let z: number = this.camMoveToLz * 128 + 64;
-        let y: number = this.getAvH(this.minusedlevel, this.camMoveToLx, this.camMoveToLz) - this.camMoveToHei;
+        let y: number = this.getAvH(this.minusedlevel, x, z) - this.camMoveToHei;
 
         if (this.cinemaX < x) {
             this.cinemaX += this.camMoveToRate + ((((x - this.cinemaX) * this.camMoveToRate2) / 1000) | 0);
@@ -3470,7 +3470,7 @@ export class Client extends GameShell {
 
         x = this.camLookAtLx * 128 + 64;
         z = this.camLookAtLz * 128 + 64;
-        y = this.getAvH(this.minusedlevel, this.camLookAtLx, this.camLookAtLz) - this.camLookAtHei;
+        y = this.getAvH(this.minusedlevel, x, z) - this.camLookAtHei;
 
         const dx: number = x - this.cinemaX;
         const dy: number = y - this.cinemaY;
@@ -6662,7 +6662,7 @@ export class Client extends GameShell {
                 if (this.camLookAtRate2 >= 100) {
                     const sceneX: number = this.camLookAtLx * 128 + 64;
                     const sceneZ: number = this.camLookAtLz * 128 + 64;
-                    const sceneY: number = this.getAvH(this.minusedlevel, this.camLookAtLx, this.camLookAtLz) - this.camLookAtHei;
+                    const sceneY: number = this.getAvH(this.minusedlevel, sceneX, sceneZ) - this.camLookAtHei;
 
                     const deltaX: number = sceneX - this.cinemaX;
                     const deltaY: number = sceneY - this.cinemaY;
@@ -6712,7 +6712,7 @@ export class Client extends GameShell {
                 if (this.camMoveToRate2 >= 100) {
                     this.cinemaX = this.camMoveToLx * 128 + 64;
                     this.cinemaZ = this.camMoveToLz * 128 + 64;
-                    this.cinemaY = this.getAvH(this.minusedlevel, this.camMoveToLx, this.camMoveToLz) - this.camMoveToHei;
+                    this.cinemaY = this.getAvH(this.minusedlevel, this.cinemaX, this.cinemaZ) - this.camMoveToHei;
                 }
 
                 this.ptype = -1;
