@@ -9167,10 +9167,11 @@ export class Client extends GameShell {
 
         if (action === MenuAction.OPHELD6) {
             const obj: ObjType = ObjType.get(a);
+            const com = IfType.list[c];
             let examine: string;
 
-            if (c >= 100000) {
-                examine = c + ' x ' + obj.name;
+            if (com && com.linkObjCount && com.linkObjCount[b] >= 100000) {
+                examine = com.linkObjCount[b] + ' x ' + obj.name;
             } else if (!obj.desc) {
                 examine = "It's a " + obj.name + '.';
             } else {
