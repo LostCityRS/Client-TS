@@ -10433,9 +10433,8 @@ export class Client extends GameShell {
                             this.menuOption[this.menuNumEntries] = 'Examine @lre@' + obj.name;
                             this.menuAction[this.menuNumEntries] = MenuAction.OPHELD6;
                             this.menuParamA[this.menuNumEntries] = obj.id;
-                            if (child.linkObjCount) {
-                                this.menuParamC[this.menuNumEntries] = child.linkObjCount[slot];
-                            }
+                            this.menuParamB[this.menuNumEntries] = slot;
+                            this.menuParamC[this.menuNumEntries] = child.id;
                             this.menuNumEntries++;
                         }
 
