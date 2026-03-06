@@ -2795,10 +2795,10 @@ export class Client extends GameShell {
         this.lastOverComId = 0;
 
         // the chatbox area
-        if (this.mouseX > 17 && this.mouseY > 357 && this.mouseX < 426 && this.mouseY < 453) {
+        if (this.mouseX > 17 && this.mouseY > 357 && this.mouseX < 496 && this.mouseY < 453) {
             if (this.chatComId !== -1) {
                 this.addComponentOptions(IfType.list[this.chatComId], this.mouseX, this.mouseY, 17, 357, 0);
-            } else if (this.mouseY < 434) {
+            } else if (this.mouseY < 434 && this.mouseX < 426) {
                 this.addChatOptions(this.mouseX - 17, this.mouseY - 357);
             }
         }
