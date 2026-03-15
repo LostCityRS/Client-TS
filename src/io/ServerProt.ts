@@ -13,7 +13,7 @@ export const enum ServerProt {
     IF_SETCOLOUR = 183,
     IF_SETHIDE = 10,
     IF_SETOBJECT = 28,
-    IF_SETMODEL = 128,
+    IF_SETMODEL = 129,
     IF_SETANIM = 134,
     IF_SETPLAYERHEAD = 192,
     IF_SETTEXT = 44,
