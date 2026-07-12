@@ -3031,17 +3031,14 @@ export class Client extends GameShell {
                         }
 
                         if (key === 13 || key === 10) {
+                            let value: number = 0;
                             if (this.dialogInput.length > 0) {
-                                let value: number = 0;
-                                try {
-                                    value = parseInt(this.dialogInput, 10);
-                                } catch (_e) {
-                                    // empty
-                                }
-
-                                this.out.p1Enc(ClientProt.RESUME_P_COUNTDIALOG);
-                                this.out.p4(value);
+                                const parsed: number = parseInt(this.dialogInput, 10);
+                                value = Number.isNaN(parsed) ? 0 : parsed;
                             }
+
+                            this.out.p1Enc(ClientProt.RESUME_P_COUNTDIALOG);
+                            this.out.p4(value);
 
                             this.dialogInputOpen = false;
                             this.redrawChat = true;
