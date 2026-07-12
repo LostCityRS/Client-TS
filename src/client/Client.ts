@@ -6146,7 +6146,11 @@ export class Client extends GameShell {
 
                 if (this.localPlayer) {
                     IfType.list[comId].model1Type = 3;
-                    IfType.list[comId].model1Id = (this.localPlayer.appearance[8] << 6) + (this.localPlayer.appearance[0] << 12) + (this.localPlayer.colour[0] << 24) + (this.localPlayer.colour[4] << 18) + this.localPlayer.appearance[11];
+                    if (!this.localPlayer.transmog) {
+                        IfType.list[comId].model1Id = (this.localPlayer.colour[0] << 24) + (this.localPlayer.colour[4] << 18) + (this.localPlayer.appearance[0] << 12) + (this.localPlayer.appearance[8] << 6) + this.localPlayer.appearance[11];
+                    } else {
+                        IfType.list[comId].model1Id = (this.localPlayer.transmog.id + 305419896) | 0;
+                    }
                 }
 
                 this.ptype = -1;
