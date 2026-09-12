@@ -474,7 +474,7 @@ export class Client extends GameShell {
     private runenergy: number = 0;
     private runweight: number = 0;
     private staffmodlevel: number = 0;
-    private var: number[] = [];
+    public var: number[] = [];
     private varServ: number[] = [];
 
     private chatInterface: IfType = new IfType();
@@ -1234,6 +1234,7 @@ export class Client extends GameShell {
 
             World.resetVisCalc(distance, 500, 800, 512, 334);
             WordFilter.unpack(wordenc);
+            ClientLocAnim.app = this;
 
             if (!this.mouseTrackingInterval) {
                 this.mouseTrackingInterval = setInterval(() => {
@@ -9322,8 +9323,21 @@ export class Client extends GameShell {
             lastTypecode = typecode;
 
             if (entityType === 2 && this.world && this.world.typeCode2(this.minusedlevel, x, z, typecode) >= 0) {
-                // todo: multiloc support
-                const loc: LocType = LocType.list(typeId);
+                let loc: LocType = LocType.list(typeId);
+                if (loc.multiloc !== null) {
+                    const varbit = VarBitType.list[loc.multivarbit];
+                    const basevar = varbit.basevar;
+                    const startbit = varbit.startbit;
+                    const endbit = varbit.endbit;
+                    const mask = Client.readbit[endbit - startbit];
+                    const index = (this.var[basevar] >> startbit) & mask;
+
+                    if (index < 0 || index >= loc.multiloc.length || loc.multiloc[index] === -1) {
+                        continue;
+                    }
+
+                    loc = LocType.list(loc.multiloc[index]);
+                }
 
                 if (this.useMode === 1) {
                     this.menuOption[this.menuNumEntries] = 'Use ' + this.objSelectedName + ' with @cya@' + loc.name;
