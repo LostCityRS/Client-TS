@@ -10,12 +10,13 @@ export default class WordPack {
     ];
 
     private static builder: string[] = [];
+    private static temp: Packet = new Packet(new Uint8Array(100));
 
     static unpack(word: Packet, length: number): string {
         let pos: number = 0;
         let carry: number = -1;
         let nibble: number;
-        for (let index: number = 0; index < length && pos < 100; index++) {
+        for (let index: number = 0; index < length; index++) {
             const value: number = word.g1();
             nibble = (value >> 4) & 0xf;
             if (carry !== -1) {
@@ -43,11 +44,19 @@ export default class WordPack {
                 this.builder[index] = char.toUpperCase();
                 uppercase = false;
             }
-            if (char === '.' || char === '!') {
+            if (char === '.' || char === '!' || char === '?') {
                 uppercase = true;
             }
         }
         return this.builder.slice(0, pos).join('');
+    }
+
+    static sanitize(str: string): string {
+        this.temp.pos = 0;
+        this.pack(this.temp, str);
+        const length: number = this.temp.pos;
+        this.temp.pos = 0;
+        return this.unpack(this.temp, length);
     }
 
     static pack(word: Packet, str: string): void {
